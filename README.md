@@ -1,4 +1,19 @@
 # NIM-Conn-System-PowerShell-Active-Directory
+<p align="center">
+  ![image](https://user-images.githubusercontent.com/24281600/134387458-b0686b64-7252-41b0-9d6d-a8b084bac626.png)
+</p>
+This is a native connector. This repo is for additional tools specific to Active Directory
+
+## Table of Contents
+* [Getting Started](#getting-started)
+* [Automated Deletion](#automated-deletion)  
+
+## Getting Started
+* Create user account 
+* Enable user account
+* Disable user account
+* Delete user account
+* Group Membership (Add / Remove)
 
 ## Automated Deletion
 
@@ -61,3 +76,7 @@ if(description.includes('AUTOMATED - Delete After:'))
 
 return status;
 ```
+
+
+# NIM Docs
+The official NIM documentation can be found at: https://docs.nimsuite.com
