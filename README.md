@@ -5,6 +5,7 @@ This is a native connector. This repo is for additional tools specific to Active
 
 ## Table of Contents
 * [Getting Started](#getting-started)
+* [Baseline Configuration](#baseline-configuration)
 * [Automated Deletion](#automated-deletion)  
 
 ## Getting Started
@@ -13,6 +14,11 @@ This is a native connector. This repo is for additional tools specific to Active
 * Disable user account
 * Delete user account
 * Group Membership (Add / Remove)
+
+## Baseline Configuration
+A baseline configuration is provided as a getting started example with all the recommended attributes, data types and relations.
+See
+[Config.Baseline.json](Config.Baseline.json)
 
 ## Automated Deletion
 

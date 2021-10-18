@@ -1,0 +1,885 @@
+﻿{
+  "system_name": "AD",
+  "system_type_category": "powershell",
+  "system_type_name": "Active Directory",
+  "name_values": [
+    {
+      "name": "collections",
+      "value": [
+        "Groups",
+        "Memberships",
+        "OrganizationalUnits",
+        "Users"
+      ]
+    },
+    {
+      "name": "domain",
+      "value": null
+    },
+    {
+      "name": "nr_of_sessions",
+      "value": null
+    },
+    {
+      "name": "password",
+      "value": null
+    },
+    {
+      "name": "resultpagesize",
+      "value": "0"
+    },
+    {
+      "name": "searchbase",
+      "value": "*"
+    },
+    {
+      "name": "server",
+      "value": null
+    },
+    {
+      "name": "sessions_idle_timeout",
+      "value": null
+    },
+    {
+      "name": "use_specific_server",
+      "value": null
+    },
+    {
+      "name": "use_svc_account_creds",
+      "value": null
+    },
+    {
+      "name": "username",
+      "value": null
+    }
+  ],
+  "collections": [
+    {
+      "col_name": "Groups",
+      "fields": [
+        {
+          "field_name": "objectGUID",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "distinguishedName",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "GroupCategory",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "GroupScope",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "cn",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "objectClass",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "path",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "sAMAccountName",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "objectSid",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        }
+      ],
+      "key": "objectGUID",
+      "display": "sAMAccountName",
+      "name_values": [],
+      "sys_nn": [],
+      "source": "data"
+    },
+    {
+      "col_name": "Memberships",
+      "fields": [
+        {
+          "field_name": "group",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": [
+            "Groups"
+          ]
+        },
+        {
+          "field_name": "member",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": [
+            "Users",
+            "Groups"
+          ]
+        }
+      ],
+      "key": "",
+      "display": "member",
+      "name_values": [],
+      "sys_nn": [
+        {
+          "field_a": "group",
+          "col_a": "Groups",
+          "field_b": "member",
+          "col_b": "Groups"
+        },
+        {
+          "field_a": "group",
+          "col_a": "Groups",
+          "field_b": "member",
+          "col_b": "Users"
+        }
+      ],
+      "source": "data"
+    },
+    {
+      "col_name": "OrganizationalUnits",
+      "fields": [
+        {
+          "field_name": "objectGUID",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "c",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "distinguishedName",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "gPLink",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "l",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "managedBy",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "ou",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "objectClass",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "path",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "postalCode",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "st",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "streetAddress",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        }
+      ],
+      "key": "objectGUID",
+      "display": "distinguishedName",
+      "name_values": [],
+      "sys_nn": [],
+      "source": "data"
+    },
+    {
+      "col_name": "Users",
+      "fields": [
+        {
+          "field_name": "objectGUID",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "accountExpires",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "adminDescription",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "c",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "CannotChangePassword",
+          "field_type": "boolean",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "canonicalName",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "ChangePasswordAtLogon",
+          "field_type": "boolean",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "cn",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "co",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "company",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "countryCode",
+          "field_type": "number",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "department",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "description",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "displayName",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "distinguishedName",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "division",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "employeeID",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "employeeNumber",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "employeeType",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "Enabled",
+          "field_type": "boolean",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "givenName",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "homeDirectory",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "homeDrive",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "homePhone",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "initials",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "ipPhone",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "l",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "lastLogon",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "lastLogonTimestamp",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "mail",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "manager",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "middleName",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "mobile",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "name",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "objectClass",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "objectSid",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "pager",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "PasswordNeverExpires",
+          "field_type": "boolean",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "PasswordNotRequired",
+          "field_type": "boolean",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "path",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "physicalDeliveryOfficeName",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "postalCode",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "postOfficeBox",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "profilePath",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "proxyAddresses",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "roomNumber",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "sAMAccountName",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "scriptPath",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "sn",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "st",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "streetAddress",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "telephoneNumber",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "title",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "userPrincipalName",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "wWWHomePage",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        }
+      ],
+      "key": "objectGUID",
+      "display": "sAMAccountName",
+      "name_values": [
+        {
+          "name": "filter",
+          "value": "*"
+        },
+        {
+          "name": "properties",
+          "value": [
+            "accountExpires",
+            "adminDescription",
+            "c",
+            "CannotChangePassword",
+            "canonicalName",
+            "ChangePasswordAtLogon",
+            "cn",
+            "co",
+            "company",
+            "countryCode",
+            "department",
+            "description",
+            "displayName",
+            "distinguishedName",
+            "division",
+            "employeeID",
+            "employeeNumber",
+            "employeeType",
+            "Enabled",
+            "givenName",
+            "homeDirectory",
+            "homeDrive",
+            "homePhone",
+            "initials",
+            "ipPhone",
+            "l",
+            "lastLogon",
+            "lastLogonTimestamp",
+            "mail",
+            "manager",
+            "middleName",
+            "mobile",
+            "name",
+            "objectClass",
+            "objectGUID",
+            "objectSid",
+            "pager",
+            "PasswordNeverExpires",
+            "PasswordNotRequired",
+            "path",
+            "physicalDeliveryOfficeName",
+            "postalCode",
+            "postOfficeBox",
+            "profilePath",
+            "proxyAddresses",
+            "roomNumber",
+            "sAMAccountName",
+            "scriptPath",
+            "sn",
+            "st",
+            "streetAddress",
+            "telephoneNumber",
+            "title",
+            "userPrincipalName",
+            "wWWHomePage"
+          ]
+        }
+      ],
+      "sys_nn": [],
+      "source": "data"
+    }
+  ],
+  "call_id": 794,
+  "auth": true
+}
