@@ -23,9 +23,9 @@ See
 ## Automated Deletion
 
 ### Example Filter
-![image](https://user-images.githubusercontent.com/24281600/134387022-fd8ba2b2-cc22-466d-b954-605d3cdd93c7.png)
+![image](https://user-images.githubusercontent.com/24281600/144680211-81a2e25d-143b-44ca-9f67-733ff9c5d57a.png)
 
-![image](https://user-images.githubusercontent.com/24281600/134387051-0ea9975b-86eb-44ce-98b6-4e34b36e46a0.png)
+![image](https://user-images.githubusercontent.com/24281600/144680231-387847fb-16b3-4b5d-b736-e97018465acb.png)
 
 ### Configuration Variables
 ![image](https://user-images.githubusercontent.com/24281600/144680134-f85d524c-8edb-445d-b6a1-79201c278206.png)
