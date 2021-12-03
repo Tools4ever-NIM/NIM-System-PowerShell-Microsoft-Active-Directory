@@ -27,12 +27,15 @@ See
 
 ![image](https://user-images.githubusercontent.com/24281600/134387051-0ea9975b-86eb-44ce-98b6-4e34b36e46a0.png)
 
+### Configuration Variables
+![image](https://user-images.githubusercontent.com/24281600/144680134-f85d524c-8edb-445d-b6a1-79201c278206.png)
+
 ### Populate Automated Deletion Date
 This script column sets up the automated deletion date so it can be populated in AD when the account is disabled
 ```
-let daysInFuture = 365;
+let daysInFuture = parseInt(variableGetValue('DeleteAfterDays'));
 
-let description = 'AUTOMATED - Delete After: ';
+let description = variableGetValue('AD_DeletePrefixValue') + ' ';
 let date = new Date();
 date.setDate(date.getDate() + daysInFuture);
 let year = date.getUTCFullYear();
@@ -54,12 +57,12 @@ This script column is used to determine if Automated Delete Date is in the futur
 
 ```
 let status = true;
+let description = Users[variableGetValue('AD_DeletePrefixAttribute')];
+let deleteDescription = variableGetValue('AD_DeletePrefixValue');
 
-let description = Users['description'];
-
-if(description.includes('AUTOMATED - Delete After:'))
+if(description.includes(deleteDescription))
 {
-	description = description.replace('AUTOMATED - Delete After:','').trim();
+	description = description.replace(deleteDescription,'').trim();
   	try
     {
       let deleteDate = new Date(description);
