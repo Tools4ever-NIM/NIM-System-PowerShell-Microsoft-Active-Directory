@@ -806,6 +806,24 @@
           "field_source": "data",
           "javascript": "",
           "ref_col": []
+        },
+        {
+          "field_name": "PasswordExpirationDate",
+          "field_type": "date",
+          "include": true,
+          "field_format": "yyyy-mm-dd (local)",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
+        },
+        {
+          "field_name": "primaryGroupID",
+          "field_type": "string",
+          "include": true,
+          "field_format": "",
+          "field_source": "data",
+          "javascript": "",
+          "ref_col": []
         }
       ],
       "key": "objectGUID",
@@ -855,12 +873,14 @@
             "objectGUID",
             "objectSid",
             "pager",
+            "PasswordExpirationDate",
             "PasswordNeverExpires",
             "PasswordNotRequired",
             "path",
             "physicalDeliveryOfficeName",
             "postalCode",
             "postOfficeBox",
+            "primaryGroupID",
             "profilePath",
             "proxyAddresses",
             "roomNumber",
@@ -880,6 +900,5 @@
       "source": "data"
     }
   ],
-  "call_id": 794,
   "auth": true
 }
