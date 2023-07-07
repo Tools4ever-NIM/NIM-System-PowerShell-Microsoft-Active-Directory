@@ -1116,7 +1116,7 @@ function Set-ADObject-ADSI {
         }
 
         if ($Properties.ContainsKey('cn')) {
-            $new_name = 'CN=' + $Properties['cn']
+            $new_name = 'CN=' + (Escape-CN $Properties['cn'])
             $pos_path = $distinguished_name.Replace('\\','  ').Replace('\,','  ').IndexOf(',')
             $new_dn   = $new_name + $distinguished_name.Substring($pos_path)
 
