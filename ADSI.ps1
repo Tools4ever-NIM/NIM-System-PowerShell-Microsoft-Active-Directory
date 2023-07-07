@@ -331,7 +331,7 @@ function Convert-ADPropertyCollection {
                             default                { 'Other';       break }
                          }
             }
-            elseif ($p -eq 'member') {
+            elseif ($p -eq 'member' -or $p -eq 'managedBy') {
                 if ($PropertyCollection -isnot [System.DirectoryServices.PropertyCollection]) {
                     # $PropertyCollection is a [System.DirectoryServices.ResultPropertyCollection]: Use as-is
                     $dirent = $null
@@ -504,7 +504,11 @@ function Convert-ADPropertyCollection {
                 $value = $value.ToString('s')
             }
 
-            $object[$p] = $value
+            if($p -eq 'managedBy') {
+                $object[$p] = $value[0]
+            } else {
+                $object[$p] = $value
+            }
         }
 
         New-Object -TypeName PSObject -Property $object
@@ -1194,6 +1198,12 @@ function Set-ADObject-ADSI {
                 break
             }
 
+            'managedBy' {
+                $manager = Get-DirectoryServicesDirectoryEntry $Credential (Make-LDAPPath $Server $Properties['managedBy'])
+                $dirent.Properties['managedBy'].Value = "$($manager.Properties['distinguishedName'])"
+                break
+            }
+
             'PasswordNeverExpires' {
                 # Do this after possible 'userAccountControl' is processed
                 break
@@ -1237,11 +1247,11 @@ function Set-ADObject-ADSI {
             }
         }
     }
-
+    
     if ($Properties) {
         # userAccountControl
         $new_uac_value = $dirent.Properties['userAccountControl'][0]
-
+        
         if ($Properties.ContainsKey('Enabled')) {
             $new_uac_value = if ($Properties['Enabled']) {
                                  $new_uac_value -band (-bnot $ADS_UF_ACCOUNTDISABLE)
@@ -1250,7 +1260,7 @@ function Set-ADObject-ADSI {
                                  $new_uac_value -bor $ADS_UF_ACCOUNTDISABLE
                              }
         }
-
+        
         if ($Properties.ContainsKey('PasswordNeverExpires')) {
             $new_uac_value = if ($Properties['PasswordNeverExpires']) {
                                  $new_uac_value -bor $ADS_UF_DONT_EXPIRE_PASSWD
@@ -1259,7 +1269,7 @@ function Set-ADObject-ADSI {
                                  $new_uac_value -band (-bnot $ADS_UF_DONT_EXPIRE_PASSWD)
                              }
         }
-
+        
         if ($Properties.ContainsKey('PasswordNotRequired')) {
             $new_uac_value = if ($Properties['PasswordNotRequired']) {
                                  $new_uac_value -bor $ADS_UF_PASSWD_NOTREQD
@@ -1268,15 +1278,18 @@ function Set-ADObject-ADSI {
                                  $new_uac_value -band (-bnot $ADS_UF_PASSWD_NOTREQD)
                              }
         }
-
-        $dirent.Properties['userAccountControl'][0] = $new_uac_value
-
+ 
+        if($dirent.Properties['userAccountControl'] -is [array]) {
+            $dirent.Properties['userAccountControl'][0] = $new_uac_value
+        }
+        
         # groupType
         if ($Properties.ContainsKey('GroupCategory') -or $Properties.ContainsKey('GroupScope')) {
             $dirent.Properties['groupType'][0] = ConvertTo-GroupType -OldValue $dirent.Properties['groupType'][0] -GroupCategory $Properties['GroupCategory'] -GroupScope $Properties['GroupScope']
         }
+        
     }
-
+    
     $dirent.CommitChanges()
 
     if ($PassThru) {
@@ -1714,7 +1727,7 @@ function Get-ADGroup-ADSI {
         [System.DirectoryServices.SearchScope] $SearchScope = 'Subtree',
         [String] $Server
     )
-
+    
     $args = @{
         # These parameters always have a value
         ResultPageSize = $ResultPageSize
