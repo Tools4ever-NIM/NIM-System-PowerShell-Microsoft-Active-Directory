@@ -72,6 +72,93 @@ function ConvertTo-ADLargeInteger {
 }
 
 
+function Escape-CN {
+    param (
+    	[Parameter(Mandatory)] [string] $CN
+    )
+
+    # https://social.technet.microsoft.com/wiki/contents/articles/5312.active-directory-characters-to-escape.aspx
+    return $CN -replace '([,\\#+<>;"=])|^( )|( )$', '\$1$2$3'
+}
+
+
+function Get-GuidFromExtendedDN {
+    param (
+        [string] $ExtendedDN
+    )
+
+    $ExtendedDN.Substring(6, 36)    # Extract guid_value from <GUID=guid_value>;<SID=sid_value>;dn
+}
+
+
+function Get-DnFromExtendedDN {
+    param (
+        [string] $ExtendedDN
+    )
+
+    $ExtendedDN -replace '^[^;]*;[^;]*;'    # Extract dn from <GUID=guid_value>;<SID=sid_value>;dn
+}
+
+
+function Get-IdentityType {
+    param (
+        [string] $Identity
+    )
+
+    if ($Identity.Length -eq 36 -and $Identity.Substring(8, 1) -eq '-' -and $Identity.Substring(13, 1) -eq '-' -and $Identity.Substring(18, 1) -eq '-' -and $Identity.Substring(23, 1) -eq '-') {
+        'objectGUID'
+    }
+    elseif ($Identity.Length -gt 4 -and $Identity.Substring(0, 4) -eq 'S-1-') {
+        'objectSid'
+    }
+    elseif ($Identity.Length -gt 3 -and $Identity.Substring(0, 3) -eq 'CN=') {
+        'distinguishedName'
+    }
+    elseif ($Identity.Length -gt 3 -and $Identity.Substring(0, 3) -eq 'OU=') {
+        'path'
+    }
+    else {
+        'other'
+    }
+}
+
+
+function Make-UniversalIdentity {
+    param (
+        [string] $Identity
+    )
+
+    $identity_type = Get-IdentityType $Identity
+
+    if ($identity_type -eq 'objectGUID') {
+        "<GUID=$($Identity)>"
+    }
+    elseif ($identity_type -eq 'objectSid') {
+        "<SID=$($Identity)>"
+    }
+    else {
+        # distinguishedName / path / other
+        $Identity
+    }
+}
+
+
+function Make-LDAPPath {
+    param (
+        [string] $Server,
+        [string] $Identity
+    )
+
+    $path = 'LDAP:/'
+
+    if ($Server) {
+        $path += '/' + $Server
+    }
+
+    $path + '/' + (Make-UniversalIdentity $Identity).Replace('/','\/')
+}
+
+
 if ($true) {
     # AD groupType bit definitions
     # -> https://docs.microsoft.com/en-us/windows/win32/adschema/a-grouptype
@@ -228,7 +315,6 @@ function Convert-ADPropertyCollection {
 	param(
         [PSCredential] $Credential,
         [System.DirectoryServices.DirectoryEntry] $DirectoryEntry,
-        [ValidateNotNull()] [String] $IdentityType,
     	[Parameter(Mandatory)] [ValidateNotNullorEmpty()] [string[]] $Properties,
     	[string[]] $SkipProperties,
     	[Parameter(ValueFromPipeline)] [AllowEmptyCollection()] $PropertyCollection
@@ -304,13 +390,8 @@ function Convert-ADPropertyCollection {
                 $value = ($li -eq 0 -or $li -gt [DateTime]::MaxValue.Ticks)
             }
             elseif ($p -eq 'distinguishedName') {
-                if (!$IdentityType -or $IdentityType -eq 'distinguishedName') {
-                    $value = $value_collection[0]
-                }
-                else {
-                    # We really want the distinguishedName part
-                    $value = @($value_collection -replace '^[^;]*;[^;]*;')[0]
-                }
+                # $value_collection[0] is an ExtendedDN
+                $value = Get-DnFromExtendedDN $value_collection[0]
             }
             elseif ($p -eq 'Enabled') {
                 # $value_collection[0] is 'userAccountControl'
@@ -331,7 +412,11 @@ function Convert-ADPropertyCollection {
                             default                { 'Other';       break }
                          }
             }
-            elseif ($p -eq 'member' -or $p -eq 'managedBy') {
+            elseif ($p -eq 'managedBy') {
+                # $value_collection[0] is an ExtendedDN
+                $value = if ($value_collection[0]) { Get-GuidFromExtendedDN $value_collection[0] } else { $null }
+            }
+            elseif ($p -eq 'member') {
                 if ($PropertyCollection -isnot [System.DirectoryServices.PropertyCollection]) {
                     # $PropertyCollection is a [System.DirectoryServices.ResultPropertyCollection]: Use as-is
                     $dirent = $null
@@ -343,13 +428,8 @@ function Convert-ADPropertyCollection {
                     $dirent = Get-DirectoryServicesDirectoryEntry $Credential $DirectoryEntry.path
                     $searcher = New-Object System.DirectoryServices.DirectorySearcher $dirent, '(objectClass=*)', $p, 'Base'
 
-                    if (!$IdentityType -or $IdentityType -eq 'distinguishedName') {
-                        $searcher.ExtendedDN = [System.DirectoryServices.ExtendedDN]::None
-                    }
-                    else {
-                        # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/57056773-932c-4e55-9491-e13f49ba580c?redirectedfrom=MSDN
-                        $searcher.ExtendedDN = [System.DirectoryServices.ExtendedDN]::Standard
-                    }
+                    # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/57056773-932c-4e55-9491-e13f49ba580c?redirectedfrom=MSDN
+                    $searcher.ExtendedDN = [System.DirectoryServices.ExtendedDN]::Standard
 
                     $pc = $searcher.FindOne().Properties
                     $value_collection = $pc[$p]
@@ -363,17 +443,9 @@ function Convert-ADPropertyCollection {
                 $start = 0
 
                 while ($true) {
-                    if (!$IdentityType -or $IdentityType -eq 'distinguishedName') {
-            	    	foreach ($m in $value_collection) {
-                            # Remove empty entries
-                            if ($m) { [void]$value.Add($m) }
-                        }
-                    }
-                    else {
-            	    	foreach ($m in $value_collection) {
-                            # Remove empty entries
-                            if ($m) { [void]$value.Add($m.Substring(6, 36)) }    # Extract GUID from <GUID=...>;...
-                        }
+                    foreach ($m in $value_collection) {
+                        # Remove empty entries
+                        if ($m) { [void]$value.Add((Get-GuidFromExtendedDN $m)) }
                     }
 
                     if ($member_range_property) {
@@ -398,13 +470,8 @@ function Convert-ADPropertyCollection {
 
                         $searcher = New-Object System.DirectoryServices.DirectorySearcher $dirent, '(objectClass=*)', $member_range_property, 'Base'
 
-                        if (!$IdentityType -or $IdentityType -eq 'distinguishedName') {
-                            $searcher.ExtendedDN = [System.DirectoryServices.ExtendedDN]::None
-                        }
-                        else {
-                            # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/57056773-932c-4e55-9491-e13f49ba580c?redirectedfrom=MSDN
-                            $searcher.ExtendedDN = [System.DirectoryServices.ExtendedDN]::Standard
-                        }
+                        # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/57056773-932c-4e55-9491-e13f49ba580c?redirectedfrom=MSDN
+                        $searcher.ExtendedDN = [System.DirectoryServices.ExtendedDN]::Standard
 
                         $pc = $searcher.FindOne().Properties
                     }
@@ -504,84 +571,11 @@ function Convert-ADPropertyCollection {
                 $value = $value.ToString('s')
             }
 
-            if($p -eq 'managedBy') {
-                $object[$p] = $value[0]
-            } else {
-                $object[$p] = $value
-            }
+            $object[$p] = $value
         }
 
         New-Object -TypeName PSObject -Property $object
  	}
-}
-
-
-function Escape-CN {
-    param (
-    	[Parameter(Mandatory)] [string] $CN
-    )
-
-    # https://social.technet.microsoft.com/wiki/contents/articles/5312.active-directory-characters-to-escape.aspx
-    return $CN -replace '([,\\#+<>;"=])|^( )|( )$', '\$1$2$3'
-}
-
-
-function Get-IdentityType {
-    param (
-        [string] $Identity
-    )
-
-    if ($Identity.Length -eq 36 -and $Identity.Substring(8, 1) -eq '-' -and $Identity.Substring(13, 1) -eq '-' -and $Identity.Substring(18, 1) -eq '-' -and $Identity.Substring(23, 1) -eq '-') {
-        'objectGUID'
-    }
-    elseif ($Identity.Length -gt 4 -and $Identity.Substring(0, 4) -eq 'S-1-') {
-        'objectSid'
-    }
-    elseif ($Identity.Length -gt 3 -and $Identity.Substring(0, 3) -eq 'CN=') {
-        'distinguishedName'
-    }
-    elseif ($Identity.Length -gt 3 -and $Identity.Substring(0, 3) -eq 'OU=') {
-        'path'
-    }
-    else {
-        'other'
-    }
-}
-
-
-function Make-UniversalIdentity {
-    param (
-        [string] $Identity
-    )
-
-    $identity_type = Get-IdentityType $Identity
-
-    if ($identity_type -eq 'objectGUID') {
-        "<GUID=$($Identity)>"
-    }
-    elseif ($identity_type -eq 'objectSid') {
-        "<SID=$($Identity)>"
-    }
-    else {
-        # distinguishedName / path / other
-        $Identity
-    }
-}
-
-
-function Make-LDAPPath {
-    param (
-        [string] $Server,
-        [string] $Identity
-    )
-
-    $path = 'LDAP:/'
-
-    if ($Server) {
-        $path += '/' + $Server
-    }
-
-    $path + '/' + (Make-UniversalIdentity $Identity).Replace('/','\/')
 }
 
 
@@ -646,6 +640,13 @@ function New-ADObject-ADSI {
                 break
             }
 
+            'managedBy' {
+                if ($Properties['managedBy']) {
+                    $dirent.Properties[$p].Value = Make-UniversalIdentity $Properties['managedBy']
+                }
+                break
+            }
+
             'PasswordNeverExpires' {
                 # Do this after object is created
                 break
@@ -707,7 +708,7 @@ function New-ADObject-ADSI {
 
     if ($Properties) {
         # userAccountControl
-        $new_uac_value = $dirent.Properties['userAccountControl'][0]
+        $new_uac_value = $dirent.Properties['userAccountControl'].Value
 
         if ($Properties.ContainsKey('Enabled')) {
             $new_uac_value = if ($Properties['Enabled']) {
@@ -736,8 +737,8 @@ function New-ADObject-ADSI {
                              }
         }
 
-        if ($new_uac_value -ne $dirent.Properties['userAccountControl'][0]) {
-            $dirent.Properties['userAccountControl'][0] = $new_uac_value
+        if ($new_uac_value -ne $dirent.Properties['userAccountControl'].Value) {
+            $dirent.Properties['userAccountControl'].Value = $new_uac_value
             $additional_commit = $true
         }
 
@@ -770,7 +771,12 @@ function New-ADObject-ADSI {
     }
 
     if ($PassThru) {
-        $additional_properties = @('distinguishedName', 'objectGUID')
+        if ($Properties -and $Properties.ContainsKey('managedBy') -and $Properties['managedBy']) {
+            # Restore requested value, as UniversalIdentity is apparently replaced by DN on CommitChanges()
+            $dirent.Properties['managedBy'].Value = Make-UniversalIdentity $Properties['managedBy']
+        }
+
+        $additional_properties = @('objectGUID', 'distinguishedName')
 
         if ($dirent.Properties.Contains('objectSid')) {
             $additional_properties += 'objectSid'
@@ -794,7 +800,6 @@ function Get-ADRootDSE-ADSI {
 function Get-ADObjectSingleSearchBase-ADSI {
     param (
         [PSCredential] $Credential,
-        [ValidateNotNull()] [String] $IdentityType,
         [Parameter(Mandatory)] [ValidateNotNullOrEmpty()] [String] $LDAPFilter,
         [ValidateNotNullOrEmpty()] [String[]] $Properties,
         [ValidateNotNullOrEmpty()] [Int32] $ResultPageSize = 256,
@@ -923,13 +928,8 @@ function Get-ADObjectSingleSearchBase-ADSI {
         $searcher.SecurityMasks = [System.DirectoryServices.SecurityMasks]::Dacl -bor [System.DirectoryServices.SecurityMasks]::Group -bor [System.DirectoryServices.SecurityMasks]::Owner
 
         # Control the contents of the member attribute (distinguishedName or objectGUID)
-        if (!$IdentityType -or $IdentityType -eq 'distinguishedName') {
-            $searcher.ExtendedDN = [System.DirectoryServices.ExtendedDN]::None
-        }
-        else {
-            # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/57056773-932c-4e55-9491-e13f49ba580c?redirectedfrom=MSDN
-            $searcher.ExtendedDN = [System.DirectoryServices.ExtendedDN]::Standard
-        }
+        # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/57056773-932c-4e55-9491-e13f49ba580c?redirectedfrom=MSDN
+        $searcher.ExtendedDN = [System.DirectoryServices.ExtendedDN]::Standard
 
         # DirectorySynchronization: 
 
@@ -954,7 +954,7 @@ function Get-ADObjectSingleSearchBase-ADSI {
 
             if (!$ResultSetSize) {
 
-                $rows.Properties | Convert-ADPropertyCollection -Credential $Credential -IdentityType $IdentityType -Properties $Properties
+                $rows.Properties | Convert-ADPropertyCollection -Credential $Credential -Properties $Properties
 
             }
             else {
@@ -963,7 +963,7 @@ function Get-ADObjectSingleSearchBase-ADSI {
                     $rows | ForEach-Object {
                         $_.Properties
                         if (--$result_count -eq 0) { break }
-                    } | Convert-ADPropertyCollection -Credential $Credential -IdentityType $IdentityType -Properties $Properties
+                    } | Convert-ADPropertyCollection -Credential $Credential -Properties $Properties
                 } while ($false)
 
             }
@@ -977,7 +977,6 @@ function Get-ADObjectSingleSearchBase-ADSI {
 function Get-ADObject-ADSI {
     param (
         [PSCredential] $Credential,
-        [ValidateNotNull()] [String] $IdentityType,
         [Parameter(Mandatory)] [ValidateNotNullOrEmpty()] [String] $LDAPFilter,
         [ValidateNotNullOrEmpty()] [String[]] $Properties,
         [ValidateNotNullOrEmpty()] [Int32] $ResultPageSize = 256,
@@ -996,10 +995,6 @@ function Get-ADObject-ADSI {
 
     if ($Credential) {
         $args.Credential = $Credential
-    }
-
-    if ($IdentityType) {
-        $args.IdentityType = $IdentityType
     }
 
     if ($Properties) {
@@ -1074,20 +1069,13 @@ function Set-ADObject-ADSI {
     )
 
     if ($Properties -and ($Properties.ContainsKey('cn') -or $Properties.ContainsKey('Path'))) {
-        $identity_type = Get-IdentityType $Identity
+        $dirent = Get-DirectoryServicesDirectoryEntry $Credential (Make-LDAPPath $Server $Identity)
 
-        if ($identity_type -eq 'distinguishedName') {
-            $distinguished_name = $Identity
+        if ($dirent.Properties.Count -eq 0) {
+            $dirent.RefreshCache()
         }
-        else {
-            $dirent = Get-DirectoryServicesDirectoryEntry $Credential (Make-LDAPPath $Server $Identity)
 
-            if ($dirent.Properties.Count -eq 0) {
-                $dirent.RefreshCache()
-            }
-
-            $distinguished_name = $dirent.Properties['distinguishedName']
-        }
+        $distinguished_name = $dirent.Properties['distinguishedName']
 
         if ($Properties.ContainsKey('Path')) {
             $path_trg = $Properties['Path']
@@ -1199,8 +1187,12 @@ function Set-ADObject-ADSI {
             }
 
             'managedBy' {
-                $manager = Get-DirectoryServicesDirectoryEntry $Credential (Make-LDAPPath $Server $Properties['managedBy'])
-                $dirent.Properties['managedBy'].Value = "$($manager.Properties['distinguishedName'])"
+                if ($Properties['managedBy']) {
+                    $dirent.Properties[$p].Value = Make-UniversalIdentity $Properties['managedBy']
+                }
+                else {
+                    $dirent.Properties[$p].Clear()
+                }
                 break
             }
 
@@ -1247,11 +1239,11 @@ function Set-ADObject-ADSI {
             }
         }
     }
-    
+
     if ($Properties) {
         # userAccountControl
-        $new_uac_value = $dirent.Properties['userAccountControl'][0]
-        
+        $new_uac_value = $dirent.Properties['userAccountControl'].Value
+
         if ($Properties.ContainsKey('Enabled')) {
             $new_uac_value = if ($Properties['Enabled']) {
                                  $new_uac_value -band (-bnot $ADS_UF_ACCOUNTDISABLE)
@@ -1260,7 +1252,7 @@ function Set-ADObject-ADSI {
                                  $new_uac_value -bor $ADS_UF_ACCOUNTDISABLE
                              }
         }
-        
+
         if ($Properties.ContainsKey('PasswordNeverExpires')) {
             $new_uac_value = if ($Properties['PasswordNeverExpires']) {
                                  $new_uac_value -bor $ADS_UF_DONT_EXPIRE_PASSWD
@@ -1269,7 +1261,7 @@ function Set-ADObject-ADSI {
                                  $new_uac_value -band (-bnot $ADS_UF_DONT_EXPIRE_PASSWD)
                              }
         }
-        
+
         if ($Properties.ContainsKey('PasswordNotRequired')) {
             $new_uac_value = if ($Properties['PasswordNotRequired']) {
                                  $new_uac_value -bor $ADS_UF_PASSWD_NOTREQD
@@ -1278,22 +1270,24 @@ function Set-ADObject-ADSI {
                                  $new_uac_value -band (-bnot $ADS_UF_PASSWD_NOTREQD)
                              }
         }
- 
-        if($dirent.Properties['userAccountControl'] -is [array]) {
-            $dirent.Properties['userAccountControl'][0] = $new_uac_value
-        }
-        
+
+        $dirent.Properties['userAccountControl'].Value = $new_uac_value
+
         # groupType
         if ($Properties.ContainsKey('GroupCategory') -or $Properties.ContainsKey('GroupScope')) {
             $dirent.Properties['groupType'][0] = ConvertTo-GroupType -OldValue $dirent.Properties['groupType'][0] -GroupCategory $Properties['GroupCategory'] -GroupScope $Properties['GroupScope']
         }
-        
     }
-    
+
     $dirent.CommitChanges()
 
     if ($PassThru) {
-        $additional_properties = @('distinguishedName', 'objectGUID')
+        if ($Properties -and $Properties.ContainsKey('managedBy') -and $Properties['managedBy']) {
+            # Restore requested value, as UniversalIdentity is apparently replaced by DN on CommitChanges()
+            $dirent.Properties['managedBy'].Value = Make-UniversalIdentity $Properties['managedBy']
+        }
+
+        $additional_properties = @('objectGUID', 'distinguishedName')
 
         if ($dirent.Properties.Contains('objectSid')) {
             $additional_properties += 'objectSid'
@@ -1346,7 +1340,7 @@ function Set-ADGroupMember-ADSI {
     }
 
     if ($PassThru) {
-        $dirent.Properties | Convert-ADPropertyCollection -Credential $Credential -DirectoryEntry $dirent -IdentityType (Get-IdentityType $Identity) -Properties '*' -SkipProperties 'member' | Add-Member -MemberType NoteProperty -Name 'adsPath' -Value $dirent.Path -PassThru
+        $dirent.Properties | Convert-ADPropertyCollection -Credential $Credential -DirectoryEntry $dirent -Properties '*' -SkipProperties 'member' | Add-Member -MemberType NoteProperty -Name 'adsPath' -Value $dirent.Path -PassThru
     }
 }
 
@@ -1364,7 +1358,7 @@ function Remove-ADObject-ADSI {
 
     if ($PassThru) {
         @{
-            (Get-IdentityType $Identity) = $Identity
+            objectGUID = $Identity
         }
     }
 }
@@ -1718,7 +1712,6 @@ function New-ADGroup-ADSI {
 function Get-ADGroup-ADSI {
     param (
         [PSCredential] $Credential,
-        [ValidateNotNull()] [String] $IdentityType,
         [Parameter(Mandatory)] [ValidateNotNullOrEmpty()] [String] $LDAPFilter,
         [ValidateNotNullOrEmpty()] [String[]] $Properties,
         [ValidateNotNullOrEmpty()] [Int32] $ResultPageSize = 256,
@@ -1727,7 +1720,7 @@ function Get-ADGroup-ADSI {
         [System.DirectoryServices.SearchScope] $SearchScope = 'Subtree',
         [String] $Server
     )
-    
+
     $args = @{
         # These parameters always have a value
         ResultPageSize = $ResultPageSize
@@ -1736,11 +1729,6 @@ function Get-ADGroup-ADSI {
 
     if ($Credential) {
         $args.Credential = $Credential
-    }
-
-    if ($IdentityType) {
-        # This controls the contents of the member attribute (distinguishedName or objectGUID)
-        $args.IdentityType = $IdentityType
     }
 
     $args.LDAPFilter = '(objectClass=group)'
