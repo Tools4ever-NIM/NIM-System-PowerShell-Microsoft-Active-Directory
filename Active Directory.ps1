@@ -15,9 +15,6 @@ $Log_MaskableKeys = @(
 )
 
 
-$Default_IdentityKey = 'objectGUID'
-
-
 #
 # System functions
 #
@@ -40,7 +37,7 @@ function Idm-SystemInfo {
                 name = 'domain'
                 type = 'textbox'
                 label = 'Domain'
-                description = 'Domain to connect; empty for current domain'
+                tooltip = 'Domain to connect; empty for current domain'
                 value = ''
             }
             @{
@@ -54,7 +51,7 @@ function Idm-SystemInfo {
                 type = 'textbox'
                 label = 'Username'
                 label_indent = $true
-                description = 'User account name to access domain services'
+                tooltip = 'User account name to access domain services'
                 value = ''
                 hidden = 'use_svc_account_creds'
             }
@@ -64,7 +61,7 @@ function Idm-SystemInfo {
                 password = $true
                 label = 'Password'
                 label_indent = $true
-                description = 'User account password to access domain services'
+                tooltip = 'User account password to access domain services'
                 value = ''
                 hidden = 'use_svc_account_creds'
             }
@@ -79,7 +76,7 @@ function Idm-SystemInfo {
                 type = 'textbox'
                 label = 'Name or IP address'
                 label_indent = $true
-                description = 'Domain services instance to connect'
+                tooltip = 'Domain services instance to connect'
                 value = ''
                 hidden = '!use_specific_server'
             }
@@ -87,14 +84,13 @@ function Idm-SystemInfo {
                 name = 'nr_of_sessions'
                 type = 'textbox'
                 label = 'Max. number of simultaneous sessions'
-                description = ''
                 value = 5
             }
             @{
                 name = 'sessions_idle_timeout'
                 type = 'textbox'
                 label = 'Session cleanup idle time (minutes)'
-                description = ''
+                tooltip = '0 disables session cleanup'
                 value = 30
             }
         )
@@ -112,23 +108,6 @@ function Idm-SystemInfo {
         $organizational_units = @( Get-ADOrganizationalUnit-ADSI @connection_params -Properties @('distinguishedName', 'canonicalName') -LDAPFilter '*' | Sort-Object -Property 'canonicalName' | ForEach-Object { @{ display = $_.canonicalName; value = $_.distinguishedName } } )
 
         @(
-#            @{
-#                name = 'identity_key'
-#                type = 'radio'
-#                label = 'Identity key'
-#                description = 'Key used to identify objects'
-#                table = @{
-#                    rows = @(
-#                        @{ id = 'distinguishedName'; display_text = 'distinguishedName' }
-#                        @{ id = 'objectGUID';        display_text = 'objectGUID'        }
-#                    )
-#                    settings_radio = @{
-#                        value_column = 'id'
-#                        display_column = 'display_text'
-#                    }
-#                }
-#                value = $Global:Default_IdentityKey
-#            }
             @{
                 name = "multi_searchbases"
                 type = 'checkbox'
@@ -140,7 +119,7 @@ function Idm-SystemInfo {
                 type = 'combo'
                 label = 'Search base'
                 label_indent = $true
-                description = 'Organization Unit to start searching on; empty or * searches all'
+                tooltip = 'Organization Unit to start searching on; empty or * searches all'
                 table = @{
                     rows = @( @{ display = '*'; value = '*' } ) + $organizational_units
                     settings_combo = @{
@@ -156,7 +135,7 @@ function Idm-SystemInfo {
                 type = 'grid'
                 label = 'Search bases'
                 label_indent = $true
-                description = 'Organization Units to start searching on; empty searches all'
+                tooltip = 'Organization Units to start searching on; empty searches all'
                 table = @{
                     rows = $organizational_units
                     settings_grid = @{
@@ -176,7 +155,7 @@ function Idm-SystemInfo {
                 name = 'resultpagesize'
                 type = 'textbox'
                 label = 'Result page size'
-                description = 'Number of rows to retrieve per request; 0 for unlimited'
+                tooltip = 'Number of rows to retrieve per request; 0 for unlimited'
                 value = '0'
             }
         )
@@ -333,6 +312,7 @@ $Properties = @{
         'ipPhone'
         'l'
         'mail'
+        'managedBy'
         'manager'
         'mailNickname'
         'mobile'
@@ -457,7 +437,6 @@ function Idm-UsersRead {
 
         $system_params   = ConvertSystemParams $SystemParams
         $function_params = ConvertFrom-Json2 $FunctionParams
-        $identity_key    = Get-IdentityKey $SystemParams
 
         $filter = $function_params.filter
 
@@ -475,8 +454,8 @@ function Idm-UsersRead {
             $properties = $Global:Properties.default.user
         }
 
-        # Assure identity_key is the first column
-        $properties = @($identity_key) + @($properties | Where-Object { $_ -ne $identity_key })
+        # Assure identity key is the first column
+        $properties = @('objectGUID') + @($properties | Where-Object { $_ -ne 'objectGUID' })
 
         LogIO info "Get-ADUser-ADSI" -In @system_params -LDAPFilter $filter -Properties $properties
         Get-ADUser-ADSI @system_params -LDAPFilter $filter -Properties $properties
@@ -501,8 +480,6 @@ function Idm-UserUpdate {
         #
         # Get meta data
         #
-
-        $identity_key = Get-IdentityKey $SystemParams
 
         $out = @{
             semantics = 'update'
@@ -529,7 +506,7 @@ function Idm-UserUpdate {
             )
         }
 
-        $out.parameters = @(@{ name = $identity_key; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne $identity_key }) | Sort-Object { $_.name }
+        $out.parameters = @(@{ name = 'objectGUID'; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne 'objectGUID' }) | Sort-Object { $_.name }
         $out
     }
     else {
@@ -539,15 +516,14 @@ function Idm-UserUpdate {
 
         $connection_params = ConvertSystemParams -Connection $SystemParams
         $function_params   = ConvertFrom-Json2 $FunctionParams
-        $identity_key      = Get-IdentityKey $SystemParams
 
         $properties = $function_params.Clone()
 
         # These are passed as mandatory parameters
-        $properties.Remove($identity_key)
+        $properties.Remove('objectGUID')
 
-        LogIO info "Set-ADUser-ADSI" -In @connection_params -Identity $function_params.$identity_key -Properties $properties
-            $rv = Set-ADUser-ADSI @connection_params -PassThru -Identity $function_params.$identity_key -Properties $properties
+        LogIO info "Set-ADUser-ADSI" -In @connection_params -Identity $function_params.objectGUID -Properties $properties
+            $rv = Set-ADUser-ADSI @connection_params -PassThru -Identity $function_params.objectGUID -Properties $properties
         LogIO info "Set-ADUser-ADSI" -Out $rv
 
         $rv
@@ -573,8 +549,6 @@ function Idm-UserDelete {
         # Get meta data
         #
 
-        $identity_key = Get-IdentityKey $SystemParams
-
         $out = @{
             semantics = 'delete'
             parameters = @(
@@ -582,7 +556,7 @@ function Idm-UserDelete {
             )
         }
 
-        $out.parameters = @(@{ name = $identity_key; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne $identity_key }) | Sort-Object { $_.name }
+        $out.parameters = @(@{ name = 'objectGUID'; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne 'objectGUID' }) | Sort-Object { $_.name }
         $out
     }
     else {
@@ -592,10 +566,9 @@ function Idm-UserDelete {
 
         $connection_params = ConvertSystemParams -Connection $SystemParams
         $function_params   = ConvertFrom-Json2 $FunctionParams
-        $identity_key      = Get-IdentityKey $SystemParams
 
-        LogIO info "Remove-ADUser-ADSI" -In @connection_params -Identity $function_params.$identity_key
-            $rv = Remove-ADUser-ADSI @connection_params -PassThru -Identity $function_params.$identity_key
+        LogIO info "Remove-ADUser-ADSI" -In @connection_params -Identity $function_params.objectGUID
+            $rv = Remove-ADUser-ADSI @connection_params -PassThru -Identity $function_params.objectGUID
         LogIO info "Remove-ADUser-ADSI" -Out $rv
 
         $rv
@@ -698,7 +671,6 @@ function Idm-ComputersRead {
 
         $system_params   = ConvertSystemParams $SystemParams
         $function_params = ConvertFrom-Json2 $FunctionParams
-        $identity_key    = Get-IdentityKey $SystemParams
 
         $filter = $function_params.filter
 
@@ -716,8 +688,8 @@ function Idm-ComputersRead {
             $properties = $Global:Properties.default.computer
         }
 
-        # Assure identity_key is the first column
-        $properties = @($identity_key) + @($properties | Where-Object { $_ -ne $identity_key })
+        # Assure identity key is the first column
+        $properties = @('objectGUID') + @($properties | Where-Object { $_ -ne 'objectGUID' })
 
         LogIO info "Get-ADComputer-ADSI" -In @system_params -LDAPFilter $filter -Properties $properties
         Get-ADComputer-ADSI @system_params -LDAPFilter $filter -Properties $properties
@@ -742,8 +714,6 @@ function Idm-ComputerUpdate {
         #
         # Get meta data
         #
-
-        $identity_key = Get-IdentityKey $SystemParams
 
         $out = @{
             semantics = 'update'
@@ -770,7 +740,7 @@ function Idm-ComputerUpdate {
             )
         }
 
-        $out.parameters = @(@{ name = $identity_key; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne $identity_key }) | Sort-Object { $_.name }
+        $out.parameters = @(@{ name = 'objectGUID'; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne 'objectGUID' }) | Sort-Object { $_.name }
         $out
     }
     else {
@@ -780,15 +750,14 @@ function Idm-ComputerUpdate {
 
         $connection_params = ConvertSystemParams -Connection $SystemParams
         $function_params   = ConvertFrom-Json2 $FunctionParams
-        $identity_key      = Get-IdentityKey $SystemParams
 
         $properties = $function_params.Clone()
 
         # These are passed as mandatory parameters
-        $properties.Remove($identity_key)
+        $properties.Remove('objectGUID')
 
-        LogIO info "Set-ADComputer-ADSI" -In @connection_params -Identity $function_params.$identity_key -Properties $properties
-            $rv = Set-ADComputer-ADSI @connection_params -PassThru -Identity $function_params.$identity_key -Properties $properties
+        LogIO info "Set-ADComputer-ADSI" -In @connection_params -Identity $function_params.objectGUID -Properties $properties
+            $rv = Set-ADComputer-ADSI @connection_params -PassThru -Identity $function_params.objectGUID -Properties $properties
         LogIO info "Set-ADComputer-ADSI" -Out $rv
 
         $rv
@@ -814,8 +783,6 @@ function Idm-ComputerDelete {
         # Get meta data
         #
 
-        $identity_key = Get-IdentityKey $SystemParams
-
         $out = @{
             semantics = 'delete'
             parameters = @(
@@ -823,7 +790,7 @@ function Idm-ComputerDelete {
             )
         }
 
-        $out.parameters = @(@{ name = $identity_key; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne $identity_key }) | Sort-Object { $_.name }
+        $out.parameters = @(@{ name = 'objectGUID'; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne 'objectGUID' }) | Sort-Object { $_.name }
         $out
     }
     else {
@@ -833,10 +800,9 @@ function Idm-ComputerDelete {
 
         $connection_params = ConvertSystemParams -Connection $SystemParams
         $function_params   = ConvertFrom-Json2 $FunctionParams
-        $identity_key      = Get-IdentityKey $SystemParams
 
-        LogIO info "Remove-ADComputer-ADSI" -In @connection_params -Identity $function_params.$identity_key
-            $rv = Remove-ADComputer-ADSI @connection_params -PassThru -Identity $function_params.$identity_key
+        LogIO info "Remove-ADComputer-ADSI" -In @connection_params -Identity $function_params.objectGUID
+            $rv = Remove-ADComputer-ADSI @connection_params -PassThru -Identity $function_params.objectGUID
         LogIO info "Remove-ADComputer-ADSI" -Out $rv
 
         $rv
@@ -932,7 +898,6 @@ function Idm-GroupsRead {
 
         $system_params   = ConvertSystemParams $SystemParams
         $function_params = ConvertFrom-Json2 $FunctionParams
-        $identity_key    = Get-IdentityKey $SystemParams
 
         $filter = $function_params.filter
 
@@ -953,11 +918,11 @@ function Idm-GroupsRead {
             $properties = $Global:Properties.default.group
         }
 
-        # Assure identity_key is the first column
-        $properties = @($identity_key) + @($properties | Where-Object { $_ -ne $identity_key })
+        # Assure identity key is the first column
+        $properties = @('objectGUID') + @($properties | Where-Object { $_ -ne 'objectGUID' })
 
-        LogIO info "Get-ADGroup-ADSI" -In @system_params -IdentityType $identity_key -LDAPFilter $filter -Properties $properties
-        Get-ADGroup-ADSI @system_params -IdentityType $identity_key -LDAPFilter $filter -Properties $properties
+        LogIO info "Get-ADGroup-ADSI" -In @system_params -LDAPFilter $filter -Properties $properties
+        Get-ADGroup-ADSI @system_params -LDAPFilter $filter -Properties $properties
     }
 
     Log info "Done"
@@ -980,8 +945,6 @@ function Idm-GroupUpdate {
         # Get meta data
         #
 
-        $identity_key = Get-IdentityKey $SystemParams
-
         $out = @{
             semantics = 'update'
             parameters = @(
@@ -1000,7 +963,7 @@ function Idm-GroupUpdate {
             )
         }
 
-        $out.parameters = @(@{ name = $identity_key; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne $identity_key }) | Sort-Object { $_.name }
+        $out.parameters = @(@{ name = 'objectGUID'; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne 'objectGUID' }) | Sort-Object { $_.name }
         $out
     }
     else {
@@ -1010,15 +973,14 @@ function Idm-GroupUpdate {
 
         $connection_params = ConvertSystemParams -Connection $SystemParams
         $function_params   = ConvertFrom-Json2 $FunctionParams
-        $identity_key      = Get-IdentityKey $SystemParams
 
         $properties = $function_params.Clone()
 
         # These are passed as mandatory parameters
-        $properties.Remove($identity_key)
+        $properties.Remove('objectGUID')
 
-        LogIO info "Set-ADGroup-ADSI" -In @connection_params -Identity $function_params.$identity_key -Properties $properties
-            $rv = Set-ADGroup-ADSI @connection_params -PassThru -Identity $function_params.$identity_key -Properties $properties
+        LogIO info "Set-ADGroup-ADSI" -In @connection_params -Identity $function_params.objectGUID -Properties $properties
+            $rv = Set-ADGroup-ADSI @connection_params -PassThru -Identity $function_params.objectGUID -Properties $properties
         LogIO info "Set-ADGroup-ADSI" -Out $rv
 
         $rv
@@ -1044,8 +1006,6 @@ function Idm-GroupDelete {
         # Get meta data
         #
 
-        $identity_key = Get-IdentityKey $SystemParams
-
         $out = @{
             semantics = 'delete'
             parameters = @(
@@ -1053,7 +1013,7 @@ function Idm-GroupDelete {
             )
         }
 
-        $out.parameters = @(@{ name = $identity_key; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne $identity_key }) | Sort-Object { $_.name }
+        $out.parameters = @(@{ name = 'objectGUID'; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne 'objectGUID' }) | Sort-Object { $_.name }
         $out
     }
     else {
@@ -1063,10 +1023,9 @@ function Idm-GroupDelete {
 
         $connection_params = ConvertSystemParams -Connection $SystemParams
         $function_params   = ConvertFrom-Json2 $FunctionParams
-        $identity_key      = Get-IdentityKey $SystemParams
 
-        LogIO info "Remove-ADGroup-ADSI" -In @connection_params -Identity $function_params.$identity_key
-            $rv = Remove-ADGroup-ADSI @connection_params -PassThru -Identity $function_params.$identity_key
+        LogIO info "Remove-ADGroup-ADSI" -In @connection_params -Identity $function_params.objectGUID
+            $rv = Remove-ADGroup-ADSI @connection_params -PassThru -Identity $function_params.objectGUID
         LogIO info "Remove-ADGroup-ADSI" -Out $rv
 
         $rv
@@ -1100,9 +1059,6 @@ function Idm-MembershipsRead {
         #
 
         $system_params = ConvertSystemParams $SystemParams
-        $identity_key  = Get-IdentityKey $SystemParams
-
-        $suffix = if ($identity_key -eq 'distinguishedName') { 'DN' } else { '' }
 
         # Use same filter as Idm-GroupsRead
         $filter = $Global:Idm_GroupsRead_Filter
@@ -1113,17 +1069,17 @@ function Idm-MembershipsRead {
             $filter = '*'
         }
 
-        $properties = @($identity_key, 'member')
+        $properties = @('objectGUID', 'member')
 
         # For recursive implementation, see:
         # -> https://www.petri.com/managing-active-directory-groups-adsi-powershell
 
-        LogIO info "Get-ADGroup-ADSI" -In @system_params -IdentityType $identity_key -LDAPFilter $filter -Properties $properties
+        LogIO info "Get-ADGroup-ADSI" -In @system_params -LDAPFilter $filter -Properties $properties
 
-        Get-ADGroup-ADSI @system_params -IdentityType $identity_key -LDAPFilter $filter -Properties $properties | ForEach-Object {
-            $group = $_.$identity_key
+        Get-ADGroup-ADSI @system_params -LDAPFilter $filter -Properties $properties | ForEach-Object {
+            $group = $_.objectGUID
             $_.member | ForEach-Object {
-                [PSCustomObject]@{ "group$suffix" = $group; "member$suffix" = $_.ToString() }
+                [PSCustomObject]@{ "group" = $group; "member" = $_.ToString() }
             }
         }
     }
@@ -1148,16 +1104,12 @@ function Idm-MembershipCreate {
         # Get meta data
         #
 
-        $identity_key = Get-IdentityKey $SystemParams
-
-        $suffix = if ($identity_key -eq 'distinguishedName') { 'DN' } else { '' }
-
         @{
             semantics = 'create'
             parameters = @(
-                @{ name = "group$suffix";  allowance = 'mandatory'  }
-                @{ name = "member$suffix"; allowance = 'mandatory'  }
-                @{ name = '*';             allowance = 'prohibited' }
+                @{ name = "group";  allowance = 'mandatory'  }
+                @{ name = "member"; allowance = 'mandatory'  }
+                @{ name = '*';      allowance = 'prohibited' }
             )
         }
     }
@@ -1168,12 +1120,9 @@ function Idm-MembershipCreate {
 
         $connection_params = ConvertSystemParams -Connection $SystemParams
         $function_params   = ConvertFrom-Json2 $FunctionParams
-        $identity_key      = Get-IdentityKey $SystemParams
 
-        $suffix = if ($identity_key -eq 'distinguishedName') { 'DN' } else { '' }
-
-        LogIO info "Set-ADGroupMember-ADSI" -In @connection_params -Identity $function_params["group$suffix"] -MembersAdd @($function_params["member$suffix"]) -MembersRemove @()
-            $rv = Set-ADGroupMember-ADSI -PassThru @connection_params -Identity $function_params["group$suffix"] -MembersAdd @($function_params["member$suffix"]) -MembersRemove @()
+        LogIO info "Set-ADGroupMember-ADSI" -In @connection_params -Identity $function_params["group"] -MembersAdd @($function_params["member"]) -MembersRemove @()
+            $rv = Set-ADGroupMember-ADSI -PassThru @connection_params -Identity $function_params["group"] -MembersAdd @($function_params["member"]) -MembersRemove @()
         LogIO info "Set-ADGroupMember-ADSI" -Out $rv
 
         $rv
@@ -1249,16 +1198,12 @@ function Idm-MembershipDelete {
         # Get meta data
         #
 
-        $identity_key = Get-IdentityKey $SystemParams
-
-        $suffix = if ($identity_key -eq 'distinguishedName') { 'DN' } else { '' }
-
         @{
             semantics = 'delete'
             parameters = @(
-                @{ name = "group$suffix";  allowance = 'mandatory'  }
-                @{ name = "member$suffix"; allowance = 'mandatory'  }
-                @{ name = '*';             allowance = 'prohibited' }
+                @{ name = "group";  allowance = 'mandatory'  }
+                @{ name = "member"; allowance = 'mandatory'  }
+                @{ name = '*';      allowance = 'prohibited' }
             )
         }
     }
@@ -1269,12 +1214,9 @@ function Idm-MembershipDelete {
 
         $connection_params = ConvertSystemParams -Connection $SystemParams
         $function_params   = ConvertFrom-Json2 $FunctionParams
-        $identity_key      = Get-IdentityKey $SystemParams
 
-        $suffix = if ($identity_key -eq 'distinguishedName') { 'DN' } else { '' }
-
-        LogIO info "Set-ADGroupMember-ADSI" -In @connection_params -Identity $function_params["group$suffix"] -MembersAdd @() -MembersRemove @($function_params["member$suffix"])
-            $rv = Set-ADGroupMember-ADSI -PassThru @connection_params -Identity $function_params["group$suffix"] -MembersAdd @() -MembersRemove @($function_params["member$suffix"])
+        LogIO info "Set-ADGroupMember-ADSI" -In @connection_params -Identity $function_params["group"] -MembersAdd @() -MembersRemove @($function_params["member"])
+            $rv = Set-ADGroupMember-ADSI -PassThru @connection_params -Identity $function_params["group"] -MembersAdd @() -MembersRemove @($function_params["member"])
         LogIO info "Set-ADGroupMember-ADSI" -Out $rv
 
         $rv
@@ -1369,7 +1311,6 @@ function Idm-OrganizationalUnitsRead {
 
         $system_params   = ConvertSystemParams $SystemParams
         $function_params = ConvertFrom-Json2 $FunctionParams
-        $identity_key    = Get-IdentityKey $SystemParams
 
         if ($function_params.include_container_objects) {
             $system_params.IncludeContainers = $true
@@ -1391,8 +1332,8 @@ function Idm-OrganizationalUnitsRead {
             $properties = $Global:Properties.default.organizationalUnit
         }
 
-        # Assure identity_key is the first column
-        $properties = @($identity_key) + @($properties | Where-Object { $_ -ne $identity_key })
+        # Assure identity key is the first column
+        $properties = @('objectGUID') + @($properties | Where-Object { $_ -ne 'objectGUID' })
 
         LogIO info "Get-ADOrganizationalUnit-ADSI" -In @system_params -LDAPFilter $filter -Properties $properties
         Get-ADOrganizationalUnit-ADSI @system_params -LDAPFilter $filter -Properties $properties
@@ -1418,8 +1359,6 @@ function Idm-OrganizationalUnitUpdate {
         # Get meta data
         #
 
-        $identity_key = Get-IdentityKey $SystemParams
-
         $out = @{
             semantics = 'update'
             parameters = @(
@@ -1438,7 +1377,7 @@ function Idm-OrganizationalUnitUpdate {
             )
         }
 
-        $out.parameters = @(@{ name = $identity_key; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne $identity_key }) | Sort-Object { $_.name }
+        $out.parameters = @(@{ name = 'objectGUID'; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne 'objectGUID' }) | Sort-Object { $_.name }
         $out
     }
     else {
@@ -1448,15 +1387,14 @@ function Idm-OrganizationalUnitUpdate {
 
         $connection_params = ConvertSystemParams -Connection $SystemParams
         $function_params   = ConvertFrom-Json2 $FunctionParams
-        $identity_key      = Get-IdentityKey $SystemParams
 
         $properties = $function_params.Clone()
 
         # These are passed as mandatory parameters
-        $properties.Remove($identity_key)
+        $properties.Remove('objectGUID')
 
-        LogIO info "Set-ADOrganizationalUnit-ADSI" -In @connection_params -Identity $function_params.$identity_key -Properties $properties
-            $rv = Set-ADOrganizationalUnit-ADSI @connection_params -PassThru -Identity $function_params.$identity_key -Properties $properties
+        LogIO info "Set-ADOrganizationalUnit-ADSI" -In @connection_params -Identity $function_params.objectGUID -Properties $properties
+            $rv = Set-ADOrganizationalUnit-ADSI @connection_params -PassThru -Identity $function_params.objectGUID -Properties $properties
         LogIO info "Set-ADOrganizationalUnit-ADSI" -Out $rv
 
         $rv
@@ -1482,8 +1420,6 @@ function Idm-OrganizationalUnitDelete {
         # Get meta data
         #
 
-        $identity_key = Get-IdentityKey $SystemParams
-
         $out = @{
             semantics = 'delete'
             parameters = @(
@@ -1491,7 +1427,7 @@ function Idm-OrganizationalUnitDelete {
             )
         }
 
-        $out.parameters = @(@{ name = $identity_key; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne $identity_key }) | Sort-Object { $_.name }
+        $out.parameters = @(@{ name = 'objectGUID'; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne 'objectGUID' }) | Sort-Object { $_.name }
         $out
     }
     else {
@@ -1501,10 +1437,9 @@ function Idm-OrganizationalUnitDelete {
 
         $connection_params = ConvertSystemParams -Connection $SystemParams
         $function_params   = ConvertFrom-Json2 $FunctionParams
-        $identity_key      = Get-IdentityKey $SystemParams
 
-        LogIO info "Remove-ADOrganizationalUnit-ADSI" -In @connection_params -Identity $function_params.$identity_key
-            $rv = Remove-ADOrganizationalUnit-ADSI @connection_params -PassThru -Identity $function_params.$identity_key
+        LogIO info "Remove-ADOrganizationalUnit-ADSI" -In @connection_params -Identity $function_params.objectGUID
+            $rv = Remove-ADOrganizationalUnit-ADSI @connection_params -PassThru -Identity $function_params.objectGUID
         LogIO info "Remove-ADOrganizationalUnit-ADSI" -Out $rv
 
         $rv
@@ -1517,19 +1452,6 @@ function Idm-OrganizationalUnitDelete {
 #
 # Helper functions
 #
-
-function Get-IdentityKey {
-    param (
-        [string] $InputParams
-    )
-
-#    $in_params = ConvertFrom-Json2 $InputParams
-#
-#    if ($in_params.identity_key) { $in_params.identity_key } else { $Global:Default_IdentityKey }
-
-    $Global:Default_IdentityKey
-}
-
 
 function ConvertSystemParams {
     param (
@@ -1706,14 +1628,13 @@ function Get-ClassMetaData {
             name = 'filter'
             type = 'textbox'
             label = 'LDAP filter'
-            description = 'Search filter; empty or * matches anything'
+            tooltip = 'Search filter; empty or * matches anything'
             value = '*'
         }
         @{
             name = 'properties'
             type = 'grid'
             label = 'Properties'
-            description = 'Selected properties'
             table = @{
                 rows = @( $properties_rows )
                 settings_grid = @{
