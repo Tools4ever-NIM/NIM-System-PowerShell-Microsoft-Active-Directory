@@ -96,7 +96,7 @@ function Get-DnFromExtendedDN {
         [string] $ExtendedDN
     )
 
-    $ExtendedDN -replace '^[^;]*;[^;]*;'    # Extract dn from <GUID=guid_value>;<SID=sid_value>;dn
+	$ExtendedDN -replace '(\<GUID.*?\>;)' -replace '(\<SID.*?\>;)'    # Extract dn from <GUID=guid_value>;<SID=sid_value>;dn
 }
 
 
@@ -416,6 +416,10 @@ function Convert-ADPropertyCollection {
                 # $value_collection[0] is an ExtendedDN
                 $value = if ($value_collection[0]) { Get-GuidFromExtendedDN $value_collection[0] } else { $null }
             }
+			elseif ($p -eq 'manager') {
+				# $value_collection[0] is an ExtendedDN
+                $value = Get-DnFromExtendedDN $value_collection[0]
+			}
             elseif ($p -eq 'member') {
                 if ($PropertyCollection -isnot [System.DirectoryServices.PropertyCollection]) {
                     # $PropertyCollection is a [System.DirectoryServices.ResultPropertyCollection]: Use as-is
