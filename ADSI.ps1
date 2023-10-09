@@ -911,7 +911,7 @@ function Get-ADObjectSingleSearchBase-ADSI {
                 $dirent = Get-DirectoryServicesDirectoryEntry $Credential $ldap_path
 
                 #$dirent.RefreshCache()
-                $searcher.SearchRoot = $dirent
+                $searcher.SearchRoot = $dirent.Path
             }
 
         # Sort: System.DirectoryServices.SortOption
