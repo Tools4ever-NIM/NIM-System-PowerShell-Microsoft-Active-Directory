@@ -96,7 +96,7 @@ function Get-DnFromExtendedDN {
         [string] $ExtendedDN
     )
 
-    $ExtendedDN -replace '^[^;]*;[^;]*;'    # Extract dn from <GUID=guid_value>;<SID=sid_value>;dn
+    $ExtendedDN -replace '^.*?;([^;]+);?$', '$1'     # Extract dn from <GUID=guid_value>;<SID=sid_value>;dn
 }
 
 
