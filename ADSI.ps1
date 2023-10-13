@@ -74,7 +74,7 @@ function ConvertTo-ADLargeInteger {
 
 function Escape-CN {
     param (
-    	[Parameter(Mandatory)] [string] $CN
+        [Parameter(Mandatory)] [string] $CN
     )
 
     # https://social.technet.microsoft.com/wiki/contents/articles/5312.active-directory-characters-to-escape.aspx
@@ -96,7 +96,7 @@ function Get-DnFromExtendedDN {
         [string] $ExtendedDN
     )
 
-    $ExtendedDN -replace '^[^;]*;[^;]*;'    # Extract dn from <GUID=guid_value>;<SID=sid_value>;dn
+    $ExtendedDN -replace '^.*?;([^;]+);?$', '$1'   # Extract dn from <GUID=guid_value>;<SID=sid_value>;dn
 }
 
 
@@ -190,23 +190,23 @@ if ($true) {
     New-Variable ADS_UF_NOT_USED_1                             -ErrorAction Ignore -Option Constant -Value 0x00004000
     New-Variable ADS_UF_NOT_USED_2                             -ErrorAction Ignore -Option Constant -Value 0x00008000
     New-Variable ADS_UF_DONT_EXPIRE_PASSWD                     -ErrorAction Ignore -Option Constant -Value 0x00010000
-    New-Variable ADS_UF_MNS_LOGON_ACCOUNT                      -ErrorAction Ignore -Option Constant -Value 0x00020000	
-    New-Variable ADS_UF_SMARTCARD_REQUIRED                     -ErrorAction Ignore -Option Constant -Value 0x00040000	
-    New-Variable ADS_UF_TRUSTED_FOR_DELEGATION                 -ErrorAction Ignore -Option Constant -Value 0x00080000	
-    New-Variable ADS_UF_NOT_DELEGATED                          -ErrorAction Ignore -Option Constant -Value 0x00100000	
-    New-Variable ADS_UF_USE_DES_KEY_ONLY                       -ErrorAction Ignore -Option Constant -Value 0x00200000	
-    New-Variable ADS_UF_DONT_REQUIRE_PREAUTH                   -ErrorAction Ignore -Option Constant -Value 0x00400000	
-    New-Variable ADS_UF_PASSWORD_EXPIRED                       -ErrorAction Ignore -Option Constant -Value 0x00800000	
-    New-Variable ADS_UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION -ErrorAction Ignore -Option Constant -Value 0x01000000	
+    New-Variable ADS_UF_MNS_LOGON_ACCOUNT                      -ErrorAction Ignore -Option Constant -Value 0x00020000   
+    New-Variable ADS_UF_SMARTCARD_REQUIRED                     -ErrorAction Ignore -Option Constant -Value 0x00040000   
+    New-Variable ADS_UF_TRUSTED_FOR_DELEGATION                 -ErrorAction Ignore -Option Constant -Value 0x00080000   
+    New-Variable ADS_UF_NOT_DELEGATED                          -ErrorAction Ignore -Option Constant -Value 0x00100000   
+    New-Variable ADS_UF_USE_DES_KEY_ONLY                       -ErrorAction Ignore -Option Constant -Value 0x00200000   
+    New-Variable ADS_UF_DONT_REQUIRE_PREAUTH                   -ErrorAction Ignore -Option Constant -Value 0x00400000   
+    New-Variable ADS_UF_PASSWORD_EXPIRED                       -ErrorAction Ignore -Option Constant -Value 0x00800000   
+    New-Variable ADS_UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION -ErrorAction Ignore -Option Constant -Value 0x01000000   
 }
 
 
 function ConvertTo-GroupType {
-	param(
+    param(
         [int32] $OldValue = 0,
-    	[Parameter(Mandatory)] [AllowEmptyString()] [string] $GroupCategory,
-    	[Parameter(Mandatory)] [AllowEmptyString()] [string] $GroupScope
-	)
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $GroupCategory,
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $GroupScope
+    )
 
     $c = switch ($GroupCategory) {
              ''             { if ($OldValue -eq 0) { $ADS_GROUP_SECURITY } else { $OldValue -band $ADS_GROUP_SECURITY }; break }
@@ -246,9 +246,9 @@ function Get-DirectoryServicesDirectoryEntry {
 
 function Get-CannotChangePassword {
     # https://docs.microsoft.com/en-us/windows/win32/adsi/reading-user-cannot-change-password-ldap-provider
-	param(
-    	[byte[]] $nTSecurityDescriptor
-	)
+    param(
+        [byte[]] $nTSecurityDescriptor
+    )
 
     $change_password_guid = [guid]'{AB721A53-1E2F-11D0-9819-00AA0040529B}'
 
@@ -285,10 +285,10 @@ function Get-CannotChangePassword {
 
 function Set-CannotChangePassword {
     # https://docs.microsoft.com/en-us/dotnet/api/system.directoryservices.activedirectorysecurity?view=net-5.0
-	param(
-    	[System.DirectoryServices.ActiveDirectorySecurity] $ADSecurity,
+    param(
+        [System.DirectoryServices.ActiveDirectorySecurity] $ADSecurity,
         [bool] $State
-	)
+    )
 
     $change_password_guid = [guid]'{AB721A53-1E2F-11D0-9819-00AA0040529B}'
 
@@ -312,20 +312,20 @@ function Set-CannotChangePassword {
 
 
 function Convert-ADPropertyCollection {
-	param(
+    param(
         [PSCredential] $Credential,
         [System.DirectoryServices.DirectoryEntry] $DirectoryEntry,
-    	[Parameter(Mandatory)] [ValidateNotNullorEmpty()] [string[]] $Properties,
-    	[string[]] $SkipProperties,
-    	[Parameter(ValueFromPipeline)] [AllowEmptyCollection()] $PropertyCollection
-	)
+        [Parameter(Mandatory)] [ValidateNotNullorEmpty()] [string[]] $Properties,
+        [string[]] $SkipProperties,
+        [Parameter(ValueFromPipeline)] [AllowEmptyCollection()] $PropertyCollection
+    )
 
     begin {
         $time_properties = @('accountexpires','badpasswordtime','lastlogoff','lastlogon','pwdlastset','usnchanged','usncreated')
         $group_scope_mask = ($ADS_GROUP_GLOBAL -bor $ADS_GROUP_DOMAINLOCAL -bor $ADS_GROUP_UNIVERSAL -bor $ADS_GROUP_APP_BASIC -bor $ADS_GROUP_APP_QUERY)
     }
 
-	process {
+    process {
         #
         # $PropertyCollection can be:
         #
@@ -415,6 +415,10 @@ function Convert-ADPropertyCollection {
             elseif ($p -eq 'managedBy') {
                 # $value_collection[0] is an ExtendedDN
                 $value = if ($value_collection[0]) { Get-GuidFromExtendedDN $value_collection[0] } else { $null }
+            }
+            elseif ($p -eq 'manager') {
+                # $value_collection[0] is an ExtendedDN
+                $value = Get-DnFromExtendedDN $value_collection[0]
             }
             elseif ($p -eq 'member') {
                 if ($PropertyCollection -isnot [System.DirectoryServices.PropertyCollection]) {
@@ -541,7 +545,7 @@ function Convert-ADPropertyCollection {
                 # Convert to string[]
                 $value = @()
 
-    	    	foreach ($bin_sid in $value_collection) {
+                foreach ($bin_sid in $value_collection) {
                     $value += (New-Object System.Security.Principal.SecurityIdentifier($bin_sid, 0)).Value
                 }
             }
@@ -575,7 +579,7 @@ function Convert-ADPropertyCollection {
         }
 
         New-Object -TypeName PSObject -Property $object
- 	}
+    }
 }
 
 
