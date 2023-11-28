@@ -374,7 +374,9 @@ function Idm-UserCreate {
                 @{ name = 'lastLogoff';            allowance = 'prohibited' }
                 @{ name = 'lastLogon';             allowance = 'prohibited' }
                 @{ name = 'logonCount';            allowance = 'prohibited' }
-                @{ name = 'objectClass';           allowance = 'prohibited' }
+                @{ name = 'canonicalName';         allowance = 'prohibited' }
+				@{ name = 'name';                  allowance = 'prohibited' }
+				@{ name = 'objectClass';           allowance = 'prohibited' }
                 @{ name = 'objectGUID';            allowance = 'prohibited' }
                 @{ name = 'objectSid';             allowance = 'prohibited' }
                 @{ name = 'path';                  allowance = 'mandatory'  }
@@ -494,6 +496,8 @@ function Idm-UserUpdate {
                 @{ name = 'lastLogoff';            allowance = 'prohibited' }
                 @{ name = 'lastLogon';             allowance = 'prohibited' }
                 @{ name = 'logonCount';            allowance = 'prohibited' }
+				@{ name = 'canonicalName';         allowance = 'prohibited' }
+				@{ name = 'name';                  allowance = 'prohibited' }
                 @{ name = 'objectClass';           allowance = 'prohibited' }
                 @{ name = 'objectGUID';            allowance = 'prohibited' }   # Conditionally replaced below
                 @{ name = 'objectSid';             allowance = 'prohibited' }
@@ -608,6 +612,8 @@ function Idm-ComputerCreate {
                 @{ name = 'lastLogoff';            allowance = 'prohibited' }
                 @{ name = 'lastLogon';             allowance = 'prohibited' }
                 @{ name = 'logonCount';            allowance = 'prohibited' }
+				@{ name = 'canonicalName';         allowance = 'prohibited' }
+				@{ name = 'name';                  allowance = 'prohibited' }
                 @{ name = 'objectClass';           allowance = 'prohibited' }
                 @{ name = 'objectGUID';            allowance = 'prohibited' }
                 @{ name = 'objectSid';             allowance = 'prohibited' }
@@ -728,6 +734,8 @@ function Idm-ComputerUpdate {
                 @{ name = 'lastLogoff';            allowance = 'prohibited' }
                 @{ name = 'lastLogon';             allowance = 'prohibited' }
                 @{ name = 'logonCount';            allowance = 'prohibited' }
+				@{ name = 'canonicalName';         allowance = 'prohibited' }
+				@{ name = 'name';                  allowance = 'prohibited' }
                 @{ name = 'objectClass';           allowance = 'prohibited' }
                 @{ name = 'objectGUID';            allowance = 'prohibited' }   # Conditionally replaced below
                 @{ name = 'objectSid';             allowance = 'prohibited' }
