@@ -561,6 +561,14 @@ function Convert-ADPropertyCollection {
                     $value += (New-Object System.Security.Principal.SecurityIdentifier($bin_sid, 0)).Value
                 }
             }
+            elseif ($p -eq 'thumbnailPhoto') {
+                try {
+                    $value = [System.Convert]::ToBase64String($value_collection[0])
+                } catch {
+                    $value = $null
+                }
+
+            }
             elseif ($Global:TerminalServicesAttributes.Contains($p)) {
                 # $value_collection[0] is 'adsPath'
                 $dirent = Get-DirectoryServicesDirectoryEntry $Credential $value_collection[0]
@@ -1238,6 +1246,10 @@ function Set-ADObject-ADSI {
                     $dirent.Properties[$p].Value = $Properties[$p]
                 }
                 break
+            }
+
+            'thumbnailPhoto' {
+                $dirent.Properties[$p].Value = [System.Convert]::FromBase64String($Properties[$p])
             }
 
             default {
