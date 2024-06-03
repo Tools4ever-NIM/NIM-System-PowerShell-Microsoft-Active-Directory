@@ -714,7 +714,7 @@ function New-ADObject-ADSI {
         $dirent.Properties['userAccountControl'].Add($ADS_UF_NORMAL_ACCOUNT -bor $ADS_UF_ACCOUNTDISABLE) >$null
     }
 
-    if ($class -ne 'container' -and $class -ne 'organizationalUnit' -and -not $dirent.Properties['sAMAccountName']) {
+    if ($class -ne 'container' -and $class -ne 'organizationalUnit' -and $class -ne 'contact' -and -not $dirent.Properties['sAMAccountName']) {
         # Assure this property is set
         $dirent.Properties['sAMAccountName'].Add($Name) >$null
     }
@@ -1427,6 +1427,66 @@ function New-ADUser-ADSI {
     New-ADObject-ADSI -Class 'user' -Name $CN -Path $Path @args
 }
 
+function Get-ADContact-ADSI {
+    param (
+        [PSCredential] $Credential,
+        [Parameter(Mandatory)] [ValidateNotNullOrEmpty()] [String] $LDAPFilter,
+        [ValidateNotNullOrEmpty()] [String[]] $Properties,
+        [ValidateNotNullOrEmpty()] [Int32] $ResultPageSize = 256,
+        [ValidateRange(1, [Int32]::MaxValue)] [Int32] $ResultSetSize,
+        [ValidateNotNull()] $SearchBases,
+        [System.DirectoryServices.SearchScope] $SearchScope = 'Subtree',
+        [String] $Server
+    )
+
+    $args = @{
+        # These parameters always have a value
+        ResultPageSize = $ResultPageSize
+        SearchScope = $SearchScope
+    }
+
+    if ($Credential) {
+        $args.Credential = $Credential
+    }
+
+    $args.LDAPFilter = '(&(objectCategory=person)(objectClass=contact))'
+
+    if ($LDAPFilter -ne '*') {
+        $args.LDAPFilter = "(&$($args.LDAPFilter)($LDAPFilter))"
+    }
+
+    if (!$Properties) {
+        # Use default property shortlist
+        # https://social.technet.microsoft.com/wiki/contents/articles/12037.active-directory-get-aduser-default-and-extended-properties.aspx
+        $Properties = @(
+            'distinguishedName'    # DistinguishedName
+            'givenName'            # GivenName
+            'cn'                   # Name
+            'objectClass'          # ObjectClass
+            'objectGUID'           # ObjectGUID
+            'Path'
+            'sn'                   # Surname
+        )
+    }
+
+    if ($Properties) {
+        $args.Properties = $Properties
+    }
+
+    if ($ResultSetSize) {
+        $args.ResultSetSize = $ResultSetSize
+    }
+
+    if ($SearchBases -ne $null) {
+        $args.SearchBases = $SearchBases
+    }
+
+    if ($Server) {
+        $args.Server = $Server
+    }
+
+    Get-ADObject-ADSI @args
+}
 
 function Get-ADUser-ADSI {
     param (
@@ -1857,7 +1917,92 @@ function Remove-ADGroup-ADSI {
     Remove-ADObject-ADSI -Identity $Identity @args
 }
 
+function New-ADContact-ADSI {
+    param (
+        [PSCredential] $Credential,
+        [Parameter(Mandatory)] [String] $Name,
+        [switch] $PassThru,
+        [Parameter(Mandatory)] [AllowEmptyString()] [String] $Path,
+        [Hashtable] $Properties,
+        [String] $Server
+    )
 
+    $args = @{}
+
+    if ($Credential) {
+        $args.Credential = $Credential
+    }
+
+    if ($PassThru) {
+        $args.PassThru = $true
+    }
+
+    if ($Properties) {
+        $args.Properties = $Properties
+    }
+
+    if ($Server) {
+        $args.Server = $Server
+    }
+
+    New-ADObject-ADSI -Class 'contact' -Name $Name -Path $Path @args
+}
+
+function Set-ADContact-ADSI {
+    param (
+        [PSCredential] $Credential,
+        [Parameter(Mandatory)] [String] $Identity,
+        [switch] $PassThru,
+        [Hashtable] $Properties,
+        [String] $Server
+    )
+
+    $args = @{}
+
+    if ($Credential) {
+        $args.Credential = $Credential
+    }
+
+    if ($PassThru) {
+        $args.PassThru = $true
+    }
+
+    if ($Properties) {
+        $args.Properties = $Properties
+    }
+
+    if ($Server) {
+        $args.Server = $Server
+    }
+
+    Set-ADObject-ADSI -Identity $Identity @args
+}
+
+
+function Remove-ADContact-ADSI {
+    param (
+        [PSCredential] $Credential,
+        [Parameter(Mandatory)] [String] $Identity,
+        [switch] $PassThru,
+        [String] $Server
+    )
+
+    $args = @{}
+
+    if ($Credential) {
+        $args.Credential = $Credential
+    }
+
+    if ($PassThru) {
+        $args.PassThru = $true
+    }
+
+    if ($Server) {
+        $args.Server = $Server
+    }
+
+    Remove-ADObject-ADSI -Identity $Identity @args
+}
 function New-ADOrganizationalUnit-ADSI {
     param (
         [PSCredential] $Credential,
@@ -2201,6 +2346,16 @@ $Properties = @{
             'userPrincipalName'
         )
 
+        contact = @(
+            'distinguishedName'
+            'givenName'
+            'cn'
+            'objectClass'
+            'objectGUID'
+            'path'
+            'sn'
+        )
+
         # https://social.technet.microsoft.com/wiki/contents/articles/12056.active-directory-get-adcomputer-default-and-extended-properties.aspx
         computer = @(
             'distinguishedName'
@@ -2427,6 +2582,218 @@ function Idm-UserCreate {
     Log info "Done"
 }
 
+function Idm-ContactCreate {
+    param (
+        # Operations
+        [switch] $GetMeta,
+        # Parameters
+        [string] $SystemParams,
+        [string] $FunctionParams
+    )
+
+    Log info "-GetMeta=$GetMeta -SystemParams='$SystemParams' -FunctionParams='$FunctionParams'"
+
+    if ($GetMeta) {
+        #
+        # Get meta data
+        #
+
+        @{
+            semantics = 'create'
+            parameters = @(
+                @{ name = 'objectClass';           allowance = 'prohibited' }
+                @{ name = 'objectGUID';            allowance = 'prohibited' }
+                @{ name = 'distinguishedName';     allowance = 'prohibited' }
+                @{ name = 'cn';                    allowance = 'mandatory'  }
+                @{ name = 'path';                  allowance = 'mandatory'  }
+                #@{ name = 'givenName';             allowance = 'mandatory'  }
+                #@{ name = 'sn';                    allowance = 'mandatory'  }
+                @{ name = 'uSNChanged';            allowance = 'prohibited' }
+                @{ name = 'uSNCreated';            allowance = 'prohibited' }
+                @{ name = 'whenChanged';           allowance = 'prohibited' }
+                @{ name = 'whenCreated';           allowance = 'prohibited' }
+                #@{ name = '*';                     allowance = 'optional'   }
+            )
+        }
+    }
+    else {
+        #
+        # Execute function
+        #
+
+        $connection_params = ConvertSystemParams -Connection $SystemParams
+        $function_params   = ConvertFrom-Json2 $FunctionParams
+
+        $properties = $function_params.Clone()
+
+        # These are passed as mandatory parameters
+        $properties.Remove('path')
+        $properties.Remove('cn')
+
+        LogIO info "New-ADContact-ADSI" -In @connection_params -Path $function_params.path -Name $function_params.cn -Properties $properties
+            $rv = New-ADContact-ADSI @connection_params -PassThru -Path $function_params.path -Name $function_params.cn -Properties $properties
+        LogIO info "New-ADContact-ADSI" -Out $rv
+
+        $rv
+    }
+
+    Log info "Done"
+}
+
+function Idm-ContactUpdate {
+    param (
+        # Operations
+        [switch] $GetMeta,
+        # Parameters
+        [string] $SystemParams,
+        [string] $FunctionParams
+    )
+
+    Log info "-GetMeta=$GetMeta -SystemParams='$SystemParams' -FunctionParams='$FunctionParams'"
+
+    if ($GetMeta) {
+        #
+        # Get meta data
+        #
+
+        $out = @{
+            semantics = 'update'
+            parameters = @(
+                @{ name = 'adsPath';               allowance = 'prohibited' }
+                @{ name = 'objectClass';           allowance = 'prohibited' }
+                @{ name = 'objectGUID';            allowance = 'prohibited' }   # Conditionally replaced below
+                @{ name = 'distinguishedName';     allowance = 'prohibited' }   # Conditionally replaced below
+                @{ name = 'dSCorePropagationData'; allowance = 'prohibited' }
+                @{ name = 'instanceType';          allowance = 'prohibited' }
+                @{ name = 'uSNChanged';            allowance = 'prohibited' }
+                @{ name = 'uSNCreated';            allowance = 'prohibited' }
+                @{ name = 'whenChanged';           allowance = 'prohibited' }
+                @{ name = 'whenCreated';           allowance = 'prohibited' }
+               #@{ name = '*';                     allowance = 'optional'   }
+            )
+        }
+
+        $out.parameters = @(@{ name = 'objectGUID'; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne 'objectGUID' }) | Sort-Object { $_.name }
+        $out
+    }
+    else {
+        #
+        # Execute function
+        #
+
+        $connection_params = ConvertSystemParams -Connection $SystemParams
+        $function_params   = ConvertFrom-Json2 $FunctionParams
+
+        $properties = $function_params.Clone()
+
+        # These are passed as mandatory parameters
+        $properties.Remove('objectGUID')
+
+        LogIO info "Set-ADContact-ADSI" -In @connection_params -Identity $function_params.objectGUID -Properties $properties
+            $rv = Set-ADContact-ADSI @connection_params -PassThru -Identity $function_params.objectGUID -Properties $properties
+        LogIO info "Set-ADContact-ADSI" -Out $rv
+
+        $rv
+    }
+
+    Log info "Done"
+}
+
+
+function Idm-ContactDelete {
+    param (
+        # Operations
+        [switch] $GetMeta,
+        # Parameters
+        [string] $SystemParams,
+        [string] $FunctionParams
+    )
+
+    Log info "-GetMeta=$GetMeta -SystemParams='$SystemParams' -FunctionParams='$FunctionParams'"
+
+    if ($GetMeta) {
+        #
+        # Get meta data
+        #
+
+        $out = @{
+            semantics = 'delete'
+            parameters = @(
+                @{ name = '*'; allowance = 'prohibited' }
+            )
+        }
+
+        $out.parameters = @(@{ name = 'objectGUID'; allowance = 'mandatory' }) + @($out.parameters | Where-Object { $_.name -ne 'objectGUID' }) | Sort-Object { $_.name }
+        $out
+    }
+    else {
+        #
+        # Execute function
+        #
+
+        $connection_params = ConvertSystemParams -Connection $SystemParams
+        $function_params   = ConvertFrom-Json2 $FunctionParams
+
+        LogIO info "Remove-ADContact-ADSI" -In @connection_params -Identity $function_params.objectGUID
+            $rv = Remove-ADContact-ADSI @connection_params -PassThru -Identity $function_params.objectGUID
+        LogIO info "Remove-ADContact-ADSI" -Out $rv
+
+        $rv
+    }
+
+    Log info "Done"
+}
+function Idm-ContactsRead {
+    param (
+        # Operations
+        [switch] $GetMeta,
+        # Parameters
+        [string] $SystemParams,
+        [string] $FunctionParams
+    )
+
+    Log info "-GetMeta=$GetMeta -SystemParams='$SystemParams' -FunctionParams='$FunctionParams'"
+
+    if ($GetMeta) {
+        #
+        # Get meta data
+        #
+
+        Get-ClassMetaData -SystemParams $SystemParams -Class 'contact'
+    }
+    else {
+        #
+        # Execute function
+        #
+
+        $system_params   = ConvertSystemParams $SystemParams
+        $function_params = ConvertFrom-Json2 $FunctionParams
+
+        $filter = $function_params.filter
+
+        if ($filter.length -eq 0) {
+            # Avoid: Cannot validate argument on parameter 'Filter'. The argument is null or empty.
+            # Provide an argument that is not null or empty, and then try the command again.
+            $filter = '*'
+        }
+
+        $properties = $function_params.properties
+        
+        if ($properties.length -eq 0) {
+            # Avoid: Cannot validate argument on parameter 'Properties'. The argument is null, empty,
+            # or an element of the argument collection contains a null value. Supply a 
+            $properties = $Global:Properties.default.contact
+        }
+
+        # Assure identity key is the first column
+        $properties = @('objectGUID') + @($properties | Where-Object { $_ -ne 'objectGUID' })
+
+        LogIO info "Get-ADContact-ADSI" -In @system_params -LDAPFilter $filter -Properties $properties
+        Get-ADContact-ADSI @system_params -LDAPFilter $filter -Properties $properties
+    }
+
+    Log info "Done"
+}
 
 function Idm-UsersRead {
     param (
