@@ -41,6 +41,7 @@ $PropertyNamesMap = @{
     PasswordNeverExpires = 'userAccountControl'
     PasswordNotRequired = 'userAccountControl'
     Path = 'distinguishedName'
+    ProtectObjectFromDeletion = 'nTSecurityDescriptor'
 }
 
 foreach ($e in $Global:TerminalServicesAttributes) { $Global:PropertyNamesMap.Add($e, 'adsPath') }
@@ -322,6 +323,46 @@ function Set-CannotChangePassword {
     }
 }
 
+function Get-ProtectObjectFromDeletion {
+    # https://docs.microsoft.com/en-us/windows/win32/adsi/reading-user-cannot-change-password-ldap-provider
+    param(
+        [byte[]] $nTSecurityDescriptor
+    )
+
+    $acl = (New-Object System.Security.AccessControl.RawSecurityDescriptor($nTSecurityDescriptor, 0)).DiscretionaryAcl
+
+    foreach ($ace in $acl) {
+        if ($ace.SecurityIdentifier -eq [System.Security.Principal.SecurityIdentifier]'S-1-1-0' -and $ace.AceType -eq [System.Security.AccessControl.AccessControlType]::Deny) {
+            return $true
+            break
+        }
+    }
+
+    return $false
+}
+function Set-ProtectObjectFromDeletion {
+    # https://docs.microsoft.com/en-us/dotnet/api/system.directoryservices.activedirectorysecurity?view=net-5.0
+    param(
+        [System.DirectoryServices.ActiveDirectorySecurity] $ADSecurity,
+        [bool] $State
+    )
+
+    $sidEveryone = New-Object System.Security.Principal.SecurityIdentifier("S-1-1-0")  # SID for Everyone
+    $ace = New-Object System.DirectoryServices.ActiveDirectoryAccessRule(
+        $sidEveryone,
+        65600,
+        [System.Security.AccessControl.AccessControlType]::Deny,
+        [System.DirectoryServices.ActiveDirectorySecurityInheritance]::None
+    )
+    if ($State) {
+        # Add the access rule
+        $ADSecurity.AddAccessRule($ace)
+    } else {
+        # Remove the access rule
+        $ADSecurity.RemoveAccessRule($ace)
+    }
+}
+
 
 function Convert-ADPropertyCollection {
     param(
@@ -431,6 +472,23 @@ function Convert-ADPropertyCollection {
             elseif ($p -eq 'manager') {
                 # $value_collection[0] is an ExtendedDN
                 $value = Get-DnFromExtendedDN $value_collection[0]
+            }
+            elseif ($p -eq 'ProtectObjectFromDeletion') {
+                # $value_collection[0] is 'nTSecurityDescriptor'
+                #
+                # From https://flylib.com/books/en/1.434.1/com_interop_data_types.html :
+                # - DirectoryEntry marshals security descriptors as a System.__ComObject data type
+                # - DirectorySearcher marshals security descriptors in binary format as a byte array
+
+                $byte_array = if ($value_collection[0] -is [System.__ComObject]) {
+                    # $DirectoryEntry.ObjectSecurity accesses 'nTSecurityDescriptor' property
+                    $DirectoryEntry.ObjectSecurity.GetSecurityDescriptorBinaryForm()
+                }
+                else {
+                    $value_collection[0]
+                }
+
+                $value = Get-ProtectObjectFromDeletion $byte_array
             }
             elseif ($p -eq 'member') {
                 if ($PropertyCollection -isnot [System.DirectoryServices.PropertyCollection]) {
@@ -681,6 +739,11 @@ function New-ADObject-ADSI {
                 break
             }
 
+            'ProtectObjectFromDeletion' {
+                # Do this after object is created
+                break
+            }
+
             { $p -in $Global:TerminalServicesAttributes } {
                 $dirent.InvokeSet($_, $Properties[$p])
                 break
@@ -786,6 +849,13 @@ function New-ADObject-ADSI {
             if ($dirent.Properties['pwdLastSet']) { $dirent.Properties['pwdLastSet'].Clear() }
             $dirent.Properties['pwdLastSet'].Add((ConvertTo-ADLargeInteger $val)) >$null
 
+            $additional_commit = $true
+        }
+
+        # ProtectObjectFromDeletion
+        if ($Properties.ContainsKey('ProtectObjectFromDeletion')) {
+            # $dirent.ObjectSecurity accesses 'nTSecurityDescriptor' property
+            Set-ProtectObjectFromDeletion $dirent.ObjectSecurity $Properties['ProtectObjectFromDeletion']
             $additional_commit = $true
         }
     }
@@ -1239,6 +1309,14 @@ function Set-ADObject-ADSI {
                 $dirent.InvokeSet($_, $Properties[$p])
                 break
             }
+
+            'ProtectObjectFromDeletion' {
+                # https://flylib.com/books/en/1.434.1/com_interop_data_types.html
+                # $dirent.ObjectSecurity accesses 'nTSecurityDescriptor' property
+                Set-ProtectObjectFromDeletion $dirent.ObjectSecurity $Properties[$p]
+                break
+            }
+
 
             'countryCode' {
                 if ($dirent.Properties[$p]) { $dirent.Properties[$p].Clear() }
@@ -2410,6 +2488,7 @@ $Properties = @{
             'PasswordNeverExpires'
             'PasswordNotRequired'
             'path'
+            'ProtectObjectFromDeletion'
         )
 
         computer = @(
@@ -2420,16 +2499,19 @@ $Properties = @{
             'PasswordNeverExpires'
             'PasswordNotRequired'
             'path'
+            'ProtectObjectFromDeletion'
         )
 
         group = @(
             'GroupCategory'
             'GroupScope'
             'path'
+            'ProtectObjectFromDeletion'
         )
 
         organizationalUnit = @(
             'path'
+            'ProtectObjectFromDeletion'
         )
     }
 
