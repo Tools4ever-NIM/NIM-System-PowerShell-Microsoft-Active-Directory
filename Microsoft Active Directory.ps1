@@ -1067,6 +1067,110 @@ function Get-ADObjectSingleSearchBase-ADSI {
     $searcher.Dispose()
 }
 
+function Get-ADObjectACL-ADSI {
+    param (
+        [PSCredential] $Credential,
+        [Parameter(Mandatory)] [ValidateNotNullOrEmpty()] [String] $LDAPFilter,
+        [ValidateNotNullOrEmpty()] [String[]] $Properties,
+        [ValidateNotNullOrEmpty()] [Int32] $ResultPageSize = 256,
+        [ValidateRange(1, [Int32]::MaxValue)] [Int32] $ResultSetSize,
+        [ValidateNotNull()] [String[]] $SearchBases,
+        [System.DirectoryServices.SearchScope] $SearchScope = 'Subtree',
+        [String] $Server
+    )
+    
+    $args = @{
+        # These parameters always have a value
+        LDAPFilter = $LDAPFilter
+        ResultPageSize = $ResultPageSize
+        SearchScope = $SearchScope
+    }
+
+    if ($Credential) {
+        $args.Credential = $Credential
+    }
+
+    if ($Properties) {
+        $args.Properties = @("objectGUID","objectClass")
+    }
+
+    if ($ResultSetSize) {
+        $args.ResultSetSize = $ResultSetSize
+    }
+
+    if ($Server) {
+        $args.Server = $Server
+    }
+
+    $objects = [System.Collections.ArrayList]@()
+    if ($SearchBases -eq $null) {
+        foreach($obj in (Get-ADObjectSingleSearchBase-ADSI @args))
+        {
+            [void]$objects.Add($obj)
+        }
+    }
+    else {
+        foreach ($searchbase in $SearchBases) {
+            foreach($obj in (Get-ADObjectSingleSearchBase-ADSI @args -SearchBase $searchbase))
+            {
+                [void]$objects.Add($obj)
+            }
+        }
+    }
+
+    foreach ($result in $objects) {
+        $adsiPath = "LDAP://<GUID=$($result.objectGUID)>"
+        $directoryEntry = [ADSI]$adsiPath
+
+        $objectSID = $null
+
+        try {
+            if ($directoryEntry.Properties["objectSID"].Count -gt 0) {
+                $objectSID = (New-Object System.Security.Principal.SecurityIdentifier($directoryEntry.Properties["objectSID"][0], 0)).Value
+            }
+        }
+        catch {}
+
+        try {
+            # Get the directory entry for the AD object
+            $directoryEntry = [ADSI]$adsiPath
+    
+            # Get the security descriptor for the object
+            $securityDescriptor = $directoryEntry.psbase.ObjectSecurity
+    
+            # Get the access rules (ACLs)
+            $accessRules = $securityDescriptor.GetAccessRules($true, $true, [System.Security.Principal.NTAccount])
+        }
+        catch {
+            LogIO warn "Failed to retrieve ACL for $adsiPath. Error: $_"
+            continue
+        }
+
+        foreach ($accessRule in $accessRules) {
+            $object = @{
+                ObjectClass = $result.ObjectClass
+                ObjectGUID = $result.ObjectGUID
+                ObjectSid = $objectSID
+                Identity = $accessRule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
+                IdentityName = $accessRule.IdentityReference.Value
+                AccessControlType = $accessRule.AccessControlType
+                ActiveDirectoryRights = $accessRule.ActiveDirectoryRights
+                InheritanceFlags = $accessRule.InheritanceFlags
+                PropagationFlags = $accessRule.PropagationFlags
+            }
+            
+            # Generate unique has for NIM Table delete operation
+            $sha256 = [System.Security.Cryptography.SHA256]::Create()
+            $hashbytes = $sha256.ComputeHash( [System.Text.Encoding]::UTF8.GetBytes( ($object | ConvertTo-Json) ) )
+            $object['id'] = [BitConverter]::ToString($hashBytes) -replace "-", ""
+
+            [PSCustomObject]$object
+        }
+        
+    }
+
+    $ACLList
+}
 
 function Get-ADObject-ADSI {
     param (
@@ -2410,6 +2514,19 @@ $Properties = @{
     # PowerShell AD Module default properties
     default = @{
         # https://social.technet.microsoft.com/wiki/contents/articles/12037.active-directory-get-aduser-default-and-extended-properties.aspx
+        acl = @(
+            'Id'
+            'PropagationFlags'
+            'AccessControlType'
+            'ObjectSid'
+            'Identity'
+            'IdentityName'
+            'ObjectGUID'
+            'ObjectClass'
+            'InheritanceFlags'
+            'ActiveDirectoryRights'
+        )
+        
         user = @(
             'distinguishedName'
             'Enabled'
@@ -2480,6 +2597,8 @@ $Properties = @{
 
     # Non-native properties, introduced by a.o. PowerShell AD Module
     extra = @{
+        acl = @(
+        )
         user = @(
             'CannotChangePassword'
             'ChangePasswordAtLogon'
@@ -2872,6 +2991,58 @@ function Idm-ContactsRead {
 
         LogIO info "Get-ADContact-ADSI" -In @system_params -LDAPFilter $filter -Properties $properties
         Get-ADContact-ADSI @system_params -LDAPFilter $filter -Properties $properties
+    }
+
+    Log info "Done"
+}
+
+function Idm-AclsRead {
+    param (
+        # Operations
+        [switch] $GetMeta,
+        # Parameters
+        [string] $SystemParams,
+        [string] $FunctionParams
+    )
+
+    Log info "-GetMeta=$GetMeta -SystemParams='$SystemParams' -FunctionParams='$FunctionParams'"
+
+    if ($GetMeta) {
+        #
+        # Get meta data
+        #
+
+        Get-ClassMetaData -SystemParams $SystemParams -Class 'acl'
+    }
+    else {
+        #
+        # Execute function
+        #
+
+        $system_params   = ConvertSystemParams $SystemParams
+        $function_params = ConvertFrom-Json2 $FunctionParams
+
+        $filter = $function_params.filter
+
+        if ($filter.length -eq 0) {
+            # Avoid: Cannot validate argument on parameter 'Filter'. The argument is null or empty.
+            # Provide an argument that is not null or empty, and then try the command again.
+            $filter = '*'
+        }
+
+        $properties = $function_params.properties
+
+        if ($properties.length -eq 0) {
+            # Avoid: Cannot validate argument on parameter 'Properties'. The argument is null, empty,
+            # or an element of the argument collection contains a null value. Supply a 
+            $properties = $Global:Properties.default.acl
+        }
+
+        # Assure identity key is the first column
+        $properties = @('objectGUID') + @($properties | Where-Object { $_ -ne 'objectGUID' })
+
+        LogIO info "Get-ADObjectACL-ADSI" -In @system_params -LDAPFilter $filter -Properties $properties
+        Get-ADObjectACL-ADSI @system_params -LDAPFilter $filter -Properties $properties
     }
 
     Log info "Done"
