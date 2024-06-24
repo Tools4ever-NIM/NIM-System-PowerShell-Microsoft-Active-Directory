@@ -46,6 +46,15 @@ $PropertyNamesMap = @{
 
 foreach ($e in $Global:TerminalServicesAttributes) { $Global:PropertyNamesMap.Add($e, 'adsPath') }
 
+function HashObjectToId {
+    param(
+        [Parameter(Mandatory)] [object] $object
+    )
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    $hashbytes = $sha256.ComputeHash( [System.Text.Encoding]::UTF8.GetBytes( ($object | ConvertTo-Json) ) )
+    return [BitConverter]::ToString($hashBytes) -replace "-", ""
+}
 
 function ConvertFrom-ADLargeInteger {
     param (
@@ -1119,8 +1128,7 @@ function Get-ADObjectACL-ADSI {
     }
 
     foreach ($result in $objects) {
-        $adsiPath = "LDAP://<GUID=$($result.objectGUID)>"
-        $directoryEntry = [ADSI]$adsiPath
+        $directoryEntry = Get-DirectoryServicesDirectoryEntry $Credential (Make-LDAPPath $Server $result.objectGUID)
 
         $objectSID = $null
 
@@ -1131,10 +1139,7 @@ function Get-ADObjectACL-ADSI {
         }
         catch {}
 
-        try {
-            # Get the directory entry for the AD object
-            $directoryEntry = [ADSI]$adsiPath
-    
+        try {   
             # Get the security descriptor for the object
             $securityDescriptor = $directoryEntry.psbase.ObjectSecurity
     
@@ -1153,23 +1158,151 @@ function Get-ADObjectACL-ADSI {
                 ObjectSid = $objectSID
                 Identity = $accessRule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
                 IdentityName = $accessRule.IdentityReference.Value
-                AccessControlType = $accessRule.AccessControlType
-                ActiveDirectoryRights = $accessRule.ActiveDirectoryRights
-                InheritanceFlags = $accessRule.InheritanceFlags
-                PropagationFlags = $accessRule.PropagationFlags
+                AccessControlType = $accessRule.AccessControlType.ToString()
+                ActiveDirectoryRights = $accessRule.ActiveDirectoryRights.ToString()
+                InheritanceFlags = $accessRule.InheritanceFlags.ToString()
+                PropagationFlags = $accessRule.PropagationFlags.ToString()
             }
             
             # Generate unique has for NIM Table delete operation
-            $sha256 = [System.Security.Cryptography.SHA256]::Create()
-            $hashbytes = $sha256.ComputeHash( [System.Text.Encoding]::UTF8.GetBytes( ($object | ConvertTo-Json) ) )
-            $object['id'] = [BitConverter]::ToString($hashBytes) -replace "-", ""
+            $object['id'] = HashObjectToId $object
 
             [PSCustomObject]$object
         }
         
     }
+}
 
-    $ACLList
+function New-ADAcl-ADSI {
+    param (
+        [PSCredential] $Credential,
+        [Parameter(Mandatory)] [String] $ObjectGUID,
+        [Parameter(Mandatory)] [String] $AccessControlType,
+        [Parameter(Mandatory)] [String] $Identity,
+        [Parameter(Mandatory)] [String[]] $ActiveDirectoryRights,
+        [String] $Server
+    )
+
+    $args = @{}
+
+    if ($Credential) {
+        $args.Credential = $Credential
+    }
+
+    if ($Server) {
+        $args.Server = $Server
+    }
+
+    # Get the directory entry for the AD object
+    $directoryEntry = Get-DirectoryServicesDirectoryEntry $Credential (Make-LDAPPath $Server $ObjectGUID)
+
+    # Get the current security descriptor for the object
+    $securityDescriptor = $directoryEntry.psbase.ObjectSecurity
+
+    # Convert the access control type to the appropriate enumeration
+    $accessControlTypeEnum = [System.Security.AccessControl.AccessControlType] $AccessControlType
+
+    # Convert the Active Directory rights to the appropriate enumeration
+    $rights = [System.DirectoryServices.ActiveDirectoryRights]::GenericRead
+   
+    foreach ($right in $ActiveDirectoryRights) {
+        $rights = $rights -bor [System.DirectoryServices.ActiveDirectoryRights] $right
+    }
+
+    # Create a new Active Directory access rule
+    $identitySID = [System.Security.Principal.SecurityIdentifier] $Identity
+
+    $accessRule = New-Object System.DirectoryServices.ActiveDirectoryAccessRule(
+        $identitySID,
+        $rights,
+        $accessControlTypeEnum
+    )
+
+    # Add the access rule to the security descriptor
+    $securityDescriptor.AddAccessRule($accessRule)
+
+    # Save the updated security descriptor back to the directory entry
+    $directoryEntry.psbase.ObjectSecurity = $securityDescriptor
+    $directoryEntry.CommitChanges()
+
+    
+    # Retreive rule for NIM
+    $directoryEntry = Get-DirectoryServicesDirectoryEntry $Credential (Make-LDAPPath $Server $ObjectGUID)
+    $rules = $directoryEntry.psbase.ObjectSecurity.GetAccessRules($true, $true, [System.Security.Principal.NTAccount])
+    foreach($accessRule in $rules) {
+        if($accessRule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -eq $Identity -and $accessRule.ActiveDirectoryRights -eq $rights) {
+            $object = @{
+                ObjectClass = $directoryEntry.ObjectClass[-1]
+                ObjectGUID = $ObjectGUID
+                ObjectSid = (New-Object System.Security.Principal.SecurityIdentifier($directoryEntry.Properties["objectSID"][0], 0)).Value
+                Identity = $accessRule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
+                IdentityName = $accessRule.IdentityReference.Value
+                AccessControlType = $accessRule.AccessControlType.ToString()
+                ActiveDirectoryRights = $accessRule.ActiveDirectoryRights.ToString()
+                InheritanceFlags = $accessRule.InheritanceFlags.ToString()
+                PropagationFlags = $accessRule.PropagationFlags.ToString()
+            }
+            
+            # Generate unique has for NIM Table delete operation
+            $object['id'] = HashObjectToId $object
+
+            [PSCustomObject]$object
+            break
+        }   
+    }
+
+}
+
+function Remove-ADAcl-ADSI {
+    param (
+        [PSCredential] $Credential,
+        [Parameter(Mandatory)] [String] $ObjectGUID,
+        [Parameter(Mandatory)] [String] $Identity,
+        [Parameter(Mandatory)] [String[]] $ActiveDirectoryRights,
+        [String] $Server
+    )
+
+    $args = @{}
+
+    if ($Credential) {
+        $args.Credential = $Credential
+    }
+
+    if ($Server) {
+        $args.Server = $Server
+    }
+
+    # Get the directory entry for the AD object
+    $directoryEntry = Get-DirectoryServicesDirectoryEntry $Credential (Make-LDAPPath $Server $ObjectGUID)
+
+    # Get the current security descriptor for the object
+    $securityDescriptor = $directoryEntry.psbase.ObjectSecurity
+
+    # Convert the Active Directory rights to the appropriate enumeration
+    $rights = [System.DirectoryServices.ActiveDirectoryRights]::GenericRead
+   
+    foreach ($right in $ActiveDirectoryRights) {
+        $rights = $rights -bor [System.DirectoryServices.ActiveDirectoryRights] $right
+    }
+
+    # Retrieve rules for NIM
+    $rules = $securityDescriptor.GetAccessRules($true, $true, [System.Security.Principal.NTAccount])
+
+    # Find the rule to remove
+    $ruleToRemove = $rules | Where-Object { 
+        $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -eq $Identity -and
+        $_.ActiveDirectoryRights -eq $rights
+    }
+
+    if ($ruleToRemove) {
+        # Remove the rule
+        $securityDescriptor.RemoveAccessRule($ruleToRemove)
+        $directoryEntry.CommitChanges()
+
+        $true
+    } else {
+        $false
+    }
 }
 
 function Get-ADObject-ADSI {
@@ -3043,6 +3176,108 @@ function Idm-AclsRead {
 
         LogIO info "Get-ADObjectACL-ADSI" -In @system_params -LDAPFilter $filter -Properties $properties
         Get-ADObjectACL-ADSI @system_params -LDAPFilter $filter -Properties $properties
+    }
+
+    Log info "Done"
+}
+
+function Idm-AclCreate {
+    param (
+        # Operations
+        [switch] $GetMeta,
+        # Parameters
+        [string] $SystemParams,
+        [string] $FunctionParams
+    )
+
+    Log info "-GetMeta=$GetMeta -SystemParams='$SystemParams' -FunctionParams='$FunctionParams'"
+
+    if ($GetMeta) {
+        #
+        # Get meta data
+        #
+
+        @{
+            semantics = 'create'
+            parameters = @(
+                @{ name = 'id';               allowance = 'prohibited' }
+                @{ name = 'PropagationFlags';       allowance = 'prohibited' }
+                @{ name = 'AccessControlType';       allowance = 'mandatory' }
+                @{ name = 'ObjectSID';       allowance = 'prohibited' }
+                @{ name = 'Identity';       allowance = 'mandatory' }
+                @{ name = 'IdentityName';       allowance = 'prohibited' }
+                @{ name = 'ObjectGUID';       allowance = 'mandatory' }
+                @{ name = 'ObjectClass';       allowance = 'prohibited' }
+                @{ name = 'InheritanceFlags';       allowance = 'prohibited' }
+                @{ name = 'ActiveDirectoryRights';           allowance = 'mandatory' }
+               #@{ name = '*';                     allowance = 'optional'   }
+            )
+        }
+    }
+    else {
+        #
+        # Execute function
+        #
+
+        $connection_params = ConvertSystemParams -Connection $SystemParams
+        $function_params   = ConvertFrom-Json2 $FunctionParams
+
+        LogIO info "New-ADAcl-ADSI" -In @connection_params -ObjectGUID $function_params.ObjectGUID -Identity $function_params.Identity -AccessControlType $function_params.AccessControlType -ActiveDirectoryRights $function_params.ActiveDirectoryRights
+            $rv = New-ADAcl-ADSI @connection_params -ObjectGUID $function_params.ObjectGUID -Identity $function_params.Identity -AccessControlType $function_params.AccessControlType -ActiveDirectoryRights $function_params.ActiveDirectoryRights
+        LogIO info "New-ADAcl-ADSI" -Out $rv
+
+        $rv
+    }
+
+    Log info "Done"
+}
+
+function Idm-AclDelete {
+    param (
+        # Operations
+        [switch] $GetMeta,
+        # Parameters
+        [string] $SystemParams,
+        [string] $FunctionParams
+    )
+
+    Log info "-GetMeta=$GetMeta -SystemParams='$SystemParams' -FunctionParams='$FunctionParams'"
+
+    if ($GetMeta) {
+        #
+        # Get meta data
+        #
+
+        @{
+            semantics = 'delete'
+            parameters = @(
+                @{ name = 'id';               allowance = 'mandatory' }
+                @{ name = 'PropagationFlags';       allowance = 'prohibited' }
+                @{ name = 'AccessControlType';       allowance = 'prohibited' }
+                @{ name = 'ObjectSID';       allowance = 'prohibited' }
+                @{ name = 'Identity';       allowance = 'mandatory' }
+                @{ name = 'IdentityName';       allowance = 'prohibited' }
+                @{ name = 'ObjectGUID';       allowance = 'mandatory' }
+                @{ name = 'ObjectClass';       allowance = 'prohibited' }
+                @{ name = 'InheritanceFlags';       allowance = 'prohibited' }
+                @{ name = 'ActiveDirectoryRights';           allowance = 'mandatory' }
+                @{ name = '*'; allowance = 'prohibited' }
+            )
+        }
+    }
+    else {
+        #
+        # Execute function
+        #
+
+        $connection_params = ConvertSystemParams -Connection $SystemParams
+        $function_params   = ConvertFrom-Json2 $FunctionParams
+
+        LogIO info "Remove-ADAcl-ADSI" -In @connection_params -id $function_params.id -Identity $function_params.Identity -ObjectGUID $function_params.ObjectGUID -ActiveDirectoryRights $function_params.ActiveDirectoryRights
+            $rv = Remove-ADAcl-ADSI @connection_params -Identity $function_params.Identity -ObjectGUID $function_params.ObjectGUID -ActiveDirectoryRights $function_params.ActiveDirectoryRights
+        LogIO info "Remove-ADAcl-ADSI" -Out $rv
+
+        $rv
     }
 
     Log info "Done"
