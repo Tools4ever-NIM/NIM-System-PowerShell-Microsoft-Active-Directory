@@ -416,7 +416,7 @@ function Convert-ADPropertyCollection {
                       }
 
                 # https://social.technet.microsoft.com/wiki/contents/articles/31135.active-directory-large-integer-attributes.aspx
-                $value = if ($li -eq 0 -or $li -gt [DateTime]::MaxValue.Ticks) {
+                $value = if ($li -le 0 -or $li -gt [DateTime]::MaxValue.Ticks) {
                             ''    # '(never)' in Active Directory Users and Computers
                          }
                          else {
