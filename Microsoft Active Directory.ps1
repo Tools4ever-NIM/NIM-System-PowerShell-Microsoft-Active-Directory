@@ -595,7 +595,7 @@ function Convert-ADPropertyCollection {
             }
             elseif ($p -eq 'objectSID') {
                 # Convert to string
-                $value = (New-Object System.Security.Principal.SecurityIdentifier($value_collection[0], 0)).Value
+                $value = try { (New-Object System.Security.Principal.SecurityIdentifier($value_collection[0], 0)).Value } catch { "" }
             }
             elseif ($p -eq 'PasswordExpirationDate') {
                 # $value_collection[0] is 'adsPath'
@@ -4459,8 +4459,13 @@ function Get-ClassMetaData {
     $connection_params = ConvertSystemParams -Connection $SystemParams
 
     Log info "Getting attribute schema of class '$Class'"
+    
+    if($Class -eq 'acl') {
+        $all_properties += $Global:Properties.default.$Class
+    } else {
+        $all_properties  = @( Get-ADAttributes @connection_params -Class $Class )
+    }
 
-    $all_properties  = @( Get-ADAttributes @connection_params -Class $Class )
     $all_properties += $Global:Properties.extra.$Class
 
     if ($Class -eq 'user') {
