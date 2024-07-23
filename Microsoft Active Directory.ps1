@@ -440,6 +440,20 @@ function Convert-ADPropertyCollection {
 
                 $value = Get-CannotChangePassword $byte_array
             }
+            elseif ($p -eq 'canonicalName') {
+                if($value_collection.length -lt 1 -or $null -eq $value_collection) {
+                    # $PropertyCollection is a [System.DirectoryServices.PropertyCollection]: Get associated [System.DirectoryServices.ResultPropertyCollection]
+                    $dirent = Get-DirectoryServicesDirectoryEntry $Credential $DirectoryEntry.path
+                    $searcher = New-Object System.DirectoryServices.DirectorySearcher $dirent, '(objectClass=*)', $p, 'Base'
+
+                    # https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/57056773-932c-4e55-9491-e13f49ba580c?redirectedfrom=MSDN
+                    $searcher.ExtendedDN = [System.DirectoryServices.ExtendedDN]::Standard
+
+                    $pc = $searcher.FindOne().Properties
+                    $value = $pc[$p]
+                } else  { $value = $value_collection[0] }
+
+            }
             elseif ($p -eq 'ChangePasswordAtLogon') {
                 # $value_collection[0] is 'pwdLastSet'
                 $li = if ($value_collection[0] -is [System.__ComObject]) {
@@ -879,7 +893,7 @@ function New-ADObject-ADSI {
             $dirent.Properties['managedBy'].Value = Make-UniversalIdentity $Properties['managedBy']
         }
 
-        $additional_properties = @('objectGUID', 'distinguishedName')
+        $additional_properties = @('objectGUID', 'distinguishedName','canonicalName')
 
         if ($dirent.Properties.Contains('objectSid')) {
             $additional_properties += 'objectSid'
