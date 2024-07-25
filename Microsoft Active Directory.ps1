@@ -893,7 +893,7 @@ function New-ADObject-ADSI {
             $dirent.Properties['managedBy'].Value = Make-UniversalIdentity $Properties['managedBy']
         }
 
-        $additional_properties = @('objectGUID', 'distinguishedName','canonicalName')
+        $additional_properties = @('objectGUID', 'distinguishedName','canonicalName','whenCreated','whenChanged')
 
         if ($dirent.Properties.Contains('objectSid')) {
             $additional_properties += 'objectSid'
