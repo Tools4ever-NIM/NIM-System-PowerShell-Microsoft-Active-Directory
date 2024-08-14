@@ -423,6 +423,10 @@ function Convert-ADPropertyCollection {
                             [DateTime]::FromFileTimeUtc($li)
                          }
             }
+			elseif ($p -eq 'assistant') {
+                # $value_collection[0] is an ExtendedDN
+                $value = Get-DnFromExtendedDN $value_collection[0]
+            }
             elseif ($p -eq 'CannotChangePassword') {
                 # $value_collection[0] is 'nTSecurityDescriptor'
                 #
