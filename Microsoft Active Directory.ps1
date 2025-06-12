@@ -442,7 +442,7 @@ function Convert-ADPropertyCollection {
                     $value_collection[0]
                 }
 
-                $value = Get-CannotChangePassword $byte_array
+                try { $value = Get-CannotChangePassword $byte_array } catch { Log warning "Unable to retrieve 'CannotChangePassword' for user: $((New-Object System.Guid(, $PropertyCollection['objectGUID'][0])).ToString())" }
             }
             elseif ($p -eq 'canonicalName') {
                 if($value_collection.length -lt 1 -or $null -eq $value_collection) {
