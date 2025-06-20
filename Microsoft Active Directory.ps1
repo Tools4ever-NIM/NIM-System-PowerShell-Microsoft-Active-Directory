@@ -1544,6 +1544,12 @@ function Set-ADObject-ADSI {
                 }
                 break
             }
+            
+            'msExchHideFromAddressLists' {
+                # Force Boolean type
+                $dirent.Properties[$p].Value = [System.Boolean]::Parse($Properties[$p])
+                break
+            }
 
             'PasswordNeverExpires' {
                 # Do this after possible 'userAccountControl' is processed
