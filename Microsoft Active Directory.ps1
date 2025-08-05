@@ -1503,6 +1503,9 @@ function Set-ADObject-ADSI {
             'CannotChangePassword' {
                 # https://flylib.com/books/en/1.434.1/com_interop_data_types.html
                 # $dirent.ObjectSecurity accesses 'nTSecurityDescriptor' property
+                # Security Masks limit scope of the what is changed
+                #    DACL = Reads or writes the discretionary access-control list (DACL) data
+                $dirent.psbase.Options.SecurityMasks = [System.DirectoryServices.SecurityMasks]::Dacl
                 Set-CannotChangePassword $dirent.ObjectSecurity $Properties[$p]
                 break
             }
