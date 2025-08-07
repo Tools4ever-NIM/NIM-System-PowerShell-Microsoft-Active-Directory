@@ -16,6 +16,28 @@
 # ADSI implementation of PowerShell Active Directory Module functionality.
 #
 
+#
+#   Error Handling
+#
+
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public class AdsErrorHelper {
+    [DllImport("ActiveDS.dll", CharSet = CharSet.Unicode)]
+    public static extern int ADsGetLastError(out int error, System.Text.StringBuilder errorBuf, int errorBufLen, System.Text.StringBuilder nameBuf, int nameBufLen);
+}
+"@
+
+function Get-ADSIError {
+    $errorBuf = New-Object System.Text.StringBuilder 1024
+    $nameBuf = New-Object System.Text.StringBuilder 1024
+    $errorCode = 0
+
+    [AdsErrorHelper]::ADsGetLastError([ref]$errorCode, $errorBuf, 1024, $nameBuf, 1024) | Out-Null
+    log error "ErrorCode: $($errorCode) - ErrorMessage $($errorBuf.ToString())"
+}
 
 #
 # Helper functions
@@ -816,7 +838,12 @@ function New-ADObject-ADSI {
         $dirent.Properties['groupType'].Add((ConvertTo-GroupType -OldValue 0 -GroupCategory $Properties['GroupCategory'] -GroupScope $Properties['GroupScope'])) >$null
     }
 
-    $dirent.CommitChanges()
+    try { 
+        $dirent.CommitChanges()
+    } catch {
+        Get-ADSIError
+        throw $_
+    }
 
     $additional_commit = $false
 
@@ -888,7 +915,12 @@ function New-ADObject-ADSI {
     }
 
     if ($additional_commit) {
-        $dirent.CommitChanges()
+        try { 
+            $dirent.CommitChanges()
+        } catch {
+            Get-ADSIError
+            throw $_
+        }
     }
 
     if ($PassThru) {
@@ -1241,7 +1273,13 @@ function New-ADAcl-ADSI {
 
     # Save the updated security descriptor back to the directory entry
     $directoryEntry.psbase.ObjectSecurity = $securityDescriptor
-    $directoryEntry.CommitChanges()
+
+    try { 
+        $directoryEntry.CommitChanges()
+    } catch {
+        Get-ADSIError
+        throw $_
+    }
 
     
     # Retreive rule for NIM
@@ -1315,7 +1353,12 @@ function Remove-ADAcl-ADSI {
     if ($ruleToRemove) {
         # Remove the rule
         $securityDescriptor.RemoveAccessRule($ruleToRemove)
-        $directoryEntry.CommitChanges()
+        try { 
+            $directoryEntry.CommitChanges()
+        } catch {
+            Get-ADSIError
+            throw $_
+        }
 
         $true
     } else {
@@ -1385,7 +1428,13 @@ function Move-ADObject-ADSI {
     }
 
     $dirent_src.MoveTo($dirent_trg)
-    $dirent_trg.CommitChanges()
+
+    try { 
+        $dirent_trg.CommitChanges()
+    } catch {
+        Get-ADSIError
+        throw $_
+    }
 }
 
 
@@ -1404,7 +1453,13 @@ function Rename-ADObject-ADSI {
     }
 
     $dirent.Rename($NewName)
-    $dirent.CommitChanges()
+    
+    try { 
+        $dirent.CommitChanges()
+    } catch {
+        Get-ADSIError
+        throw $_
+    }
 }
 
 
@@ -1496,7 +1551,12 @@ function Set-ADObject-ADSI {
             }
 
             'AccountPassword' {
-                $dirent.Invoke('SetPassword', $Properties[$p]) >$null
+                try {
+                    $dirent.Invoke('SetPassword', $Properties[$p]) >$null
+                } catch {
+                    Get-ADSIError
+                    throw $_
+                }
                 break
             }
 
@@ -1649,7 +1709,12 @@ function Set-ADObject-ADSI {
         }
     }
 
-    $dirent.CommitChanges()
+    try { 
+        $dirent.CommitChanges()
+    } catch {
+        Get-ADSIError
+        throw $_
+    }
 
     if ($PassThru) {
         if ($Properties -and $Properties.ContainsKey('managedBy') -and $Properties['managedBy']) {
@@ -1690,7 +1755,12 @@ function Set-ADGroupMember-ADSI {
 
         $n++
         if ($n -eq 65535) {
-            $dirent.CommitChanges()
+            try { 
+                $dirent.CommitChanges()
+            } catch {
+                Get-ADSIError
+                throw $_
+            }
             $n = 0
         }
     }
@@ -1700,13 +1770,23 @@ function Set-ADGroupMember-ADSI {
 
         $n++
         if ($n -eq 65535) {
-            $dirent.CommitChanges()
+            try { 
+                $dirent.CommitChanges()
+            } catch {
+                Get-ADSIError
+                throw $_
+            }
             $n = 0
         }
     }
 
     if ($n -gt 0) {
-        $dirent.CommitChanges()
+        try { 
+            $dirent.CommitChanges()
+        } catch {
+            Get-ADSIError
+            throw $_
+        }
     }
 
     if ($PassThru) {
