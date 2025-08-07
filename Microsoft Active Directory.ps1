@@ -23,10 +23,30 @@
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 public class AdsErrorHelper {
     [DllImport("ActiveDS.dll", CharSet = CharSet.Unicode)]
     public static extern int ADsGetLastError(out int error, System.Text.StringBuilder errorBuf, int errorBufLen, System.Text.StringBuilder nameBuf, int nameBufLen);
+}
+
+public class Win32ErrorHelper {
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern int FormatMessage(
+        int flags,
+        IntPtr source,
+        int messageId,
+        int languageId,
+        StringBuilder buffer,
+        int size,
+        IntPtr arguments);
+
+    public static string GetMessage(int errorCode) {
+        StringBuilder buffer = new StringBuilder(1024);
+        int flags = 0x00001000; // FORMAT_MESSAGE_FROM_SYSTEM
+        int result = FormatMessage(flags, IntPtr.Zero, errorCode, 0, buffer, buffer.Capacity, IntPtr.Zero);
+        return buffer.ToString();
+    }
 }
 "@
 
@@ -37,7 +57,9 @@ function Get-ADSIError {
 
     [AdsErrorHelper]::ADsGetLastError([ref]$errorCode, $errorBuf, 1024, $nameBuf, 1024) | Out-Null
     log error "ErrorCode: $($errorCode) - ErrorMessage $($errorBuf.ToString())"
+    log error "Win32 Description: $([Win32ErrorHelper]::GetMessage($ErrorCode))"
 }
+
 
 #
 # Helper functions
