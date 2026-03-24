@@ -1156,6 +1156,7 @@ function Get-ADObjectACL-ADSI {
         [ValidateNotNullOrEmpty()] [Int32] $ResultPageSize = 256,
         [ValidateRange(1, [Int32]::MaxValue)] [Int32] $ResultSetSize,
         [ValidateNotNull()] [String[]] $SearchBases,
+        [ValidateNotNull()] [String[]] $ExcludeSearchBases,
         [System.DirectoryServices.SearchScope] $SearchScope = 'Subtree',
         [String] $Server
     )
@@ -1197,6 +1198,24 @@ function Get-ADObjectACL-ADSI {
                 [void]$objects.Add($obj)
             }
         }
+    }
+
+    # Filter out objects from excluded search bases
+    if ($ExcludeSearchBases -and $ExcludeSearchBases.length -gt 0) {
+        $filteredObjects = [System.Collections.ArrayList]@()
+        foreach ($obj in $objects) {
+            $isExcluded = $false
+            foreach ($excludeBase in $ExcludeSearchBases) {
+                if ($obj.distinguishedName -like "*,$excludeBase") {
+                    $isExcluded = $true
+                    break
+                }
+            }
+            if (-not $isExcluded) {
+                [void]$filteredObjects.Add($obj)
+            }
+        }
+        $objects = $filteredObjects
     }
 
     foreach ($result in $objects) {
@@ -1396,6 +1415,7 @@ function Get-ADObject-ADSI {
         [ValidateNotNullOrEmpty()] [Int32] $ResultPageSize = 256,
         [ValidateRange(1, [Int32]::MaxValue)] [Int32] $ResultSetSize,
         [ValidateNotNull()] [String[]] $SearchBases,
+        [ValidateNotNull()] [String[]] $ExcludeSearchBases,
         [System.DirectoryServices.SearchScope] $SearchScope = 'Subtree',
         [String] $Server
     )
@@ -1423,13 +1443,32 @@ function Get-ADObject-ADSI {
         $args.Server = $Server
     }
 
-    if ($SearchBases -eq $null) {
+    $results = if ($SearchBases -eq $null) {
         Get-ADObjectSingleSearchBase-ADSI @args
     }
     else {
         foreach ($searchbase in $SearchBases) {
             Get-ADObjectSingleSearchBase-ADSI @args -SearchBase $searchbase
         }
+    }
+
+    # Filter out objects from excluded search bases
+    if ($ExcludeSearchBases -and $ExcludeSearchBases.length -gt 0) {
+        foreach ($result in $results) {
+            $isExcluded = $false
+            foreach ($excludeBase in $ExcludeSearchBases) {
+                if ($result.distinguishedName -like "*,$excludeBase") {
+                    $isExcluded = $true
+                    break
+                }
+            }
+            if (-not $isExcluded) {
+                $result
+            }
+        }
+    }
+    else {
+        $results
     }
 }
 
@@ -1894,6 +1933,7 @@ function Get-ADContact-ADSI {
         [ValidateNotNullOrEmpty()] [Int32] $ResultPageSize = 256,
         [ValidateRange(1, [Int32]::MaxValue)] [Int32] $ResultSetSize,
         [ValidateNotNull()] $SearchBases,
+        [ValidateNotNull()] [String[]] $ExcludeSearchBases,
         [System.DirectoryServices.SearchScope] $SearchScope = 'Subtree',
         [String] $Server
     )
@@ -1940,6 +1980,10 @@ function Get-ADContact-ADSI {
         $args.SearchBases = $SearchBases
     }
 
+    if ($ExcludeSearchBases -and $ExcludeSearchBases.length -gt 0) {
+        $args.ExcludeSearchBases = $ExcludeSearchBases
+    }
+
     if ($Server) {
         $args.Server = $Server
     }
@@ -1955,6 +1999,7 @@ function Get-ADUser-ADSI {
         [ValidateNotNullOrEmpty()] [Int32] $ResultPageSize = 256,
         [ValidateRange(1, [Int32]::MaxValue)] [Int32] $ResultSetSize,
         [ValidateNotNull()] $SearchBases,
+        [ValidateNotNull()] [String[]] $ExcludeSearchBases,
         [System.DirectoryServices.SearchScope] $SearchScope = 'Subtree',
         [String] $Server
     )
@@ -2003,6 +2048,10 @@ function Get-ADUser-ADSI {
 
     if ($SearchBases -ne $null) {
         $args.SearchBases = $SearchBases
+    }
+
+    if ($ExcludeSearchBases -and $ExcludeSearchBases.length -gt 0) {
+        $args.ExcludeSearchBases = $ExcludeSearchBases
     }
 
     if ($Server) {
@@ -2110,6 +2159,7 @@ function Get-ADComputer-ADSI {
         [ValidateNotNullOrEmpty()] [Int32] $ResultPageSize = 256,
         [ValidateRange(1, [Int32]::MaxValue)] [Int32] $ResultSetSize,
         [ValidateNotNull()] $SearchBases,
+        [ValidateNotNull()] [String[]] $ExcludeSearchBases,
         [System.DirectoryServices.SearchScope] $SearchScope = 'Subtree',
         [String] $Server
     )
@@ -2157,6 +2207,10 @@ function Get-ADComputer-ADSI {
 
     if ($SearchBases -ne $null) {
         $args.SearchBases = $SearchBases
+    }
+
+    if ($ExcludeSearchBases -and $ExcludeSearchBases.length -gt 0) {
+        $args.ExcludeSearchBases = $ExcludeSearchBases
     }
 
     if ($Server) {
@@ -2264,6 +2318,7 @@ function Get-ADGroup-ADSI {
         [ValidateNotNullOrEmpty()] [Int32] $ResultPageSize = 256,
         [ValidateRange(1, [Int32]::MaxValue)] [Int32] $ResultSetSize,
         [ValidateNotNull()] $SearchBases,
+        [ValidateNotNull()] [String[]] $ExcludeSearchBases,
         [System.DirectoryServices.SearchScope] $SearchScope = 'Subtree',
         [String] $Server
     )
@@ -2310,6 +2365,10 @@ function Get-ADGroup-ADSI {
 
     if ($SearchBases -ne $null) {
         $args.SearchBases = $SearchBases
+    }
+
+    if ($ExcludeSearchBases -and $ExcludeSearchBases.length -gt 0) {
+        $args.ExcludeSearchBases = $ExcludeSearchBases
     }
 
     if ($Server) {
@@ -2503,6 +2562,7 @@ function Get-ADOrganizationalUnit-ADSI {
         [ValidateNotNullOrEmpty()] [Int32] $ResultPageSize = 256,
         [ValidateRange(1, [Int32]::MaxValue)] [Int32] $ResultSetSize,
         [ValidateNotNull()] $SearchBases,
+        [ValidateNotNull()] [String[]] $ExcludeSearchBases,
         [System.DirectoryServices.SearchScope] $SearchScope = 'Subtree',
         [String] $Server
     )
@@ -2556,6 +2616,10 @@ function Get-ADOrganizationalUnit-ADSI {
 
     if ($SearchBases -ne $null) {
         $args.SearchBases = $SearchBases
+    }
+
+    if ($ExcludeSearchBases -and $ExcludeSearchBases.length -gt 0) {
+        $args.ExcludeSearchBases = $ExcludeSearchBases
     }
 
     if ($Server) {
@@ -2768,6 +2832,25 @@ function Idm-SystemInfo {
                 }
                 value = @()
                 hidden = '!multi_searchbases'
+            }
+            @{
+                name = 'exclude_searchbases'
+                type = 'grid'
+                label = 'Exclude search bases'
+                tooltip = 'Organization Units to exclude from searching (improves performance by skipping OUs with many objects)'
+                table = @{
+                    rows = $organizational_units
+                    settings_grid = @{
+                        selection = 'multiple'
+                        key_column = 'value'
+                        checkbox = $true
+                        filter = $true
+                        columns = @(
+                            @{ name = 'display'; display_name = 'Organizational Unit' }
+                        )
+                    }
+                }
+                value = @()
             }
             @{
                 name = 'resultpagesize'
@@ -4517,6 +4600,11 @@ function ConvertSystemParams {
         if ($out_params.SearchBases.length -eq 0) {
             # Avoid: An empty SearchBase is only supported while connected to a GlobalCatalog
             $out_params.Remove('SearchBases')
+        }
+
+        # Process exclude search bases
+        if ($in_params.exclude_searchbases -and $in_params.exclude_searchbases.length -gt 0) {
+            $out_params.ExcludeSearchBases = $in_params.exclude_searchbases
         }
 
         $out_params.ResultPageSize = $in_params.resultpagesize
