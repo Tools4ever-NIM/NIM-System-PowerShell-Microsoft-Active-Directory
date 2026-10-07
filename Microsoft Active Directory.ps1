@@ -2970,6 +2970,10 @@ $Properties = @{
             'ProtectObjectFromDeletion'
         )
 
+        contact = @(
+            'path'
+        )
+        
         computer = @(
             'CannotChangePassword'
             'ChangePasswordAtLogon'
