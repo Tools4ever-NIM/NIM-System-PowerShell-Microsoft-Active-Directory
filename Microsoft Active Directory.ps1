@@ -2787,7 +2787,7 @@ function Idm-SystemInfo {
     if ($Configuration) {
         $connection_params = ConvertSystemParams -Connection $ConnectionParams
 
-        $organizational_units = @( Get-ADOrganizationalUnit-ADSI @connection_params -Properties @('distinguishedName', 'canonicalName') -LDAPFilter '*' | Sort-Object -Property 'canonicalName' | ForEach-Object { @{ display = $_.canonicalName; value = $_.distinguishedName } } )
+        $organizational_units = @( Get-ADOrganizationalUnit-ADSI @connection_params -IncludeContainers -Properties @('distinguishedName', 'canonicalName') -LDAPFilter '*' | Sort-Object -Property 'canonicalName' | ForEach-Object { @{ display = $_.canonicalName; value = $_.distinguishedName } } )
 
         @(
             @{
